@@ -1,0 +1,466 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  BUSINESS_OWNER
+  BUSINESS_STAFF
+  CUSTOMER
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING
+}
+
+enum BusinessStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum CampaignType {
+  STAMP
+  VISIT
+  POINT
+  SPEND
+  REFERRAL
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  EXPIRED
+}
+
+enum VerificationMethod {
+  QR
+  STAFF
+  MANUAL
+  SYSTEM
+}
+
+enum PointTransactionType {
+  EARN
+  REDEEM
+  ADJUSTMENT
+  EXPIRY
+  BONUS
+}
+
+enum RewardType {
+  FREE_PRODUCT
+  FREE_SERVICE
+  DISCOUNT_PERCENTAGE
+  DISCOUNT_FIXED
+  VOUCHER
+  POINTS
+  FREE_SESSION
+  CUSTOM
+}
+
+enum RewardStatus {
+  AVAILABLE
+  CLAIMED
+  REDEEMED
+  EXPIRED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIAL
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  WHATSAPP
+  PUSH
+}
+
+model User {
+  id           String      @id @default(uuid())
+  name         String
+  email        String      @unique
+  phone        String?
+  passwordHash String
+  avatar       String?
+  role         UserRole    @default(CUSTOMER)
+  status       UserStatus  @default(ACTIVE)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relationships
+  ownedBusinesses    Business[]           @relation("BusinessOwner")
+  staffMemberships   BusinessStaff[]
+  customerBusinesses CustomerBusiness[]
+  visits             Visit[]
+  stampTransactions  StampTransaction[]
+  pointTransactions  PointTransaction[]
+  rewardRedemptions  RewardRedemption[]
+  notifications      Notification[]
+  auditLogs          AuditLog[]           @relation("UserAuditLogs")
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+}
+
+model Industry {
+  id         String     @id @default(uuid())
+  name       String     @unique
+  slug       String     @unique
+  icon       String?
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  businesses Business[]
+
+  @@index([slug])
+}
+
+model Business {
+  id              String         @id @default(uuid())
+  name            String
+  slug            String         @unique
+  logo            String?
+  coverImage      String?
+  description     String?
+  industryId      String
+  industry        Industry       @relation(fields: [industryId], references: [id])
+  ownerId         String
+  owner           User           @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  phone           String?
+  email           String?
+  website         String?
+  address         String?
+  city            String?
+  state           String?
+  country         String         @default("India")
+  pincode         String?
+  latitude        Float?
+  longitude       Float?
+  status          BusinessStatus @default(PENDING)
+  subscriptionId  String?
+  cooldownMinutes Int            @default(60)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  // Relationships
+  branches           BusinessBranch[]
+  staffMembers       BusinessStaff[]
+  campaigns          Campaign[]
+  rewards            Reward[]
+  customerBusinesses CustomerBusiness[]
+  visits             Visit[]
+  stampTransactions  StampTransaction[]
+  pointTransactions  PointTransaction[]
+  rewardRedemptions  RewardRedemption[]
+  qrCodes            QRCode[]
+  subscription       Subscription?
+
+  @@index([slug])
+  @@index([ownerId])
+  @@index([industryId])
+  @@index([status])
+}
+
+model BusinessBranch {
+  id         String    @id @default(uuid())
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name       String
+  address    String?
+  city       String?
+  phone      String?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  visits     Visit[]
+  qrCodes    QRCode[]
+
+  @@index([businessId])
+}
+
+model BusinessStaff {
+  id         String    @id @default(uuid())
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       UserRole  @default(BUSINESS_STAFF)
+  branchId   String?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  @@unique([businessId, userId])
+  @@index([businessId])
+  @@index([userId])
+}
+
+model Campaign {
+  id             String         @id @default(uuid())
+  businessId     String
+  business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  type           CampaignType   @default(STAMP)
+  status         CampaignStatus @default(ACTIVE)
+  startDate      DateTime       @default(now())
+  endDate        DateTime?
+  isRecurring    Boolean        @default(true)
+  recurrenceType String?
+  maxCompletions Int?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  rules             CampaignRule[]
+  rewards           Reward[]
+  visits            Visit[]
+  stampTransactions StampTransaction[]
+  pointTransactions PointTransaction[]
+  qrCodes           QRCode[]
+
+  @@index([businessId])
+  @@index([status])
+  @@index([type])
+}
+
+model CampaignRule {
+  id             String       @id @default(uuid())
+  campaignId     String
+  campaign       Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  conditionType  String       // VISIT_COUNT, STAMP_COUNT, POINT_BALANCE, SPEND_AMOUNT, REFERRAL_COUNT
+  conditionValue Int
+  rewardType     RewardType   @default(FREE_SERVICE)
+  rewardValue    String
+
+  @@index([campaignId])
+}
+
+model Reward {
+  id          String       @id @default(uuid())
+  businessId  String
+  business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaignId  String?
+  campaign    Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  title       String
+  description String?
+  type        RewardType   @default(FREE_SERVICE)
+  value       String
+  validFrom   DateTime     @default(now())
+  validUntil  DateTime?
+  usageLimit  Int?
+  status      RewardStatus @default(AVAILABLE)
+  createdAt   DateTime     @default(now())
+
+  redemptions RewardRedemption[]
+
+  @@index([businessId])
+  @@index([campaignId])
+}
+
+model CustomerBusiness {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  joinedAt    DateTime  @default(now())
+  status      String    @default("ACTIVE")
+  totalVisits Int       @default(0)
+  totalStamps Int       @default(0)
+  totalPoints Int       @default(0)
+  lastVisitAt DateTime?
+
+  @@unique([userId, businessId])
+  @@index([userId])
+  @@index([businessId])
+  @@index([lastVisitAt])
+}
+
+model Visit {
+  id                 String             @id @default(uuid())
+  userId             String
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId         String
+  business           Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId           String?
+  branch             BusinessBranch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  campaignId         String?
+  campaign           Campaign?          @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  verificationMethod VerificationMethod @default(QR)
+  verifiedBy         String?
+  deviceInfo         String?
+  ipAddress          String?
+  createdAt          DateTime           @default(now())
+
+  stampTransactions  StampTransaction[]
+
+  @@index([userId])
+  @@index([businessId])
+  @@index([branchId])
+  @@index([createdAt])
+}
+
+model StampTransaction {
+  id                 String             @id @default(uuid())
+  userId             String
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId         String
+  business           Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaignId         String
+  campaign           Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  visitId            String?
+  visit              Visit?             @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  issuedBy           String?
+  verificationMethod VerificationMethod @default(QR)
+  createdAt          DateTime           @default(now())
+
+  @@index([userId])
+  @@index([businessId])
+  @@index([campaignId])
+}
+
+model PointTransaction {
+  id          String               @id @default(uuid())
+  userId      String
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId  String
+  business    Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaignId  String?
+  campaign    Campaign?            @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  amount      Int
+  type        PointTransactionType @default(EARN)
+  referenceId String?
+  description String?
+  createdAt   DateTime             @default(now())
+
+  @@index([userId])
+  @@index([businessId])
+}
+
+model RewardRedemption {
+  id         String       @id @default(uuid())
+  rewardId   String
+  reward     Reward       @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId String
+  business   Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  code       String       @unique
+  status     RewardStatus @default(CLAIMED)
+  claimedAt  DateTime     @default(now())
+  redeemedAt DateTime?
+  verifiedBy String?
+
+  @@index([rewardId])
+  @@index([userId])
+  @@index([businessId])
+  @@index([code])
+}
+
+model QRCode {
+  id         String    @id @default(uuid())
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId   String?
+  branch     BusinessBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  token      String    @unique
+  expiresAt  DateTime
+  type       String    @default("DYNAMIC_CHECKIN")
+  isUsed     Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+
+  @@index([businessId])
+  @@index([token])
+}
+
+model SubscriptionPlan {
+  id           String         @id @default(uuid())
+  name         String
+  code         String         @unique
+  price        Float
+  currency     String         @default("INR")
+  interval     String         @default("MONTHLY")
+  maxStaff     Int            @default(2)
+  maxBranches  Int            @default(1)
+  maxCampaigns Int            @default(2)
+  maxCustomers Int            @default(500)
+  features     String         // JSON array string
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+
+  subscriptions Subscription[]
+
+  @@index([code])
+}
+
+model Subscription {
+  id                    String             @id @default(uuid())
+  businessId            String             @unique
+  business              Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  planId                String
+  plan                  SubscriptionPlan   @relation(fields: [planId], references: [id])
+  status                SubscriptionStatus @default(ACTIVE)
+  razorpaySubscriptionId String?
+  currentPeriodStart    DateTime           @default(now())
+  currentPeriodEnd      DateTime
+  cancelAtPeriodEnd     Boolean            @default(false)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  @@index([businessId])
+  @@index([planId])
+  @@index([status])
+}
+
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String              @default("SYSTEM")
+  channel   NotificationChannel @default(IN_APP)
+  isRead    Boolean             @default(false)
+  metadata  String?
+  createdAt DateTime            @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actor      User?    @relation("UserAuditLogs", fields: [actorId], references: [id], onDelete: SetNull)
+  actorRole  String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entityType])
+  @@index([action])
+  @@index([createdAt])
+}

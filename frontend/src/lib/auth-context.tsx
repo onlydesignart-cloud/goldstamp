@@ -1,0 +1,367 @@
+'use client';
+
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
+import { api } from './api';
+import { mockStore } from './mockStore';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role: 'SUPER_ADMIN' | 'BUSINESS_OWNER' | 'BUSINESS_STAFF' | 'CUSTOMER';
+  status: string;
+}
+
+export interface Business {
+  id: string;
+  name: string;
+  slug: string;
+  logo?: string | null;
+  cooldownMinutes: number;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  settings?: any;
+}
+
+interface AuthContextType {
+  user: User | null;
+  business: Business | null;
+  loading: boolean;
+  isImpersonating: boolean;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithWhatsApp: (phone: string, otp?: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: (googleData?: { email?: string; name?: string; avatar?: string }) => Promise<{ success: boolean; error?: string }>;
+  register: (data: any) => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (updates: { name?: string; phone?: string; email?: string }) => Promise<{ success: boolean; error?: string }>;
+  logout: () => void;
+  switchDemoRole: (target: 'admin' | 'smashzone' | 'cafe' | 'customer') => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  impersonateBusiness: (businessId: string) => Promise<void>;
+  stopImpersonation: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const pathname = usePathname();
+  const [user, setUser] = useState<User | null>(null);
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [isImpersonating, setIsImpersonating] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const isClientPortal = pathname?.startsWith('/client');
+  const isAdminPortal = pathname?.startsWith('/admin');
+
+  const refreshProfile = async () => {
+    try {
+      if (typeof window === 'undefined') {
+        setLoading(false);
+        return;
+      }
+
+      if (isClientPortal) {
+        // Merchant Portal Session
+        const impBizId = localStorage.getItem('goldstamp_impersonation_biz_id');
+        if (impBizId) {
+          const impBiz = mockStore.getRaw().businesses.find((b: any) => b.id === impBizId);
+          if (impBiz) {
+            const owner = mockStore.getUserById(impBiz.ownerId) || mockStore.getUserByEmail('owner@smashzone.com');
+            setUser(owner || null);
+            setBusiness(impBiz);
+            setIsImpersonating(true);
+            setLoading(false);
+            return;
+          }
+        }
+        setIsImpersonating(false);
+
+        const stored = localStorage.getItem('goldstamp_merchant_user');
+        let currentMerchant: any = null;
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            currentMerchant = mockStore.getUserById(parsed.id) || mockStore.getUserByEmail(parsed.email);
+          } catch {}
+        }
+        // If not logged in yet or no merchant session, default to SmashZone owner for seamless testing
+        if (!currentMerchant) {
+          currentMerchant = mockStore.getUserByEmail('owner@smashzone.com');
+          if (currentMerchant) {
+            localStorage.setItem('goldstamp_merchant_user', JSON.stringify(currentMerchant));
+          }
+        }
+
+        if (currentMerchant) {
+          setUser(currentMerchant);
+          const biz = mockStore.getBusinessByOwnerId(currentMerchant.id) || mockStore.getRaw().businesses[0];
+          setBusiness(biz || null);
+        } else {
+          setUser(null);
+          setBusiness(null);
+        }
+      } else if (isAdminPortal) {
+        // Admin Portal Session
+        const stored = localStorage.getItem('goldstamp_admin_user');
+        let currentAdmin: any = null;
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            currentAdmin = mockStore.getUserById(parsed.id);
+          } catch {}
+        }
+        if (!currentAdmin) {
+          currentAdmin = mockStore.getUserByEmail('admin@example.com');
+          if (currentAdmin) {
+            localStorage.setItem('goldstamp_admin_user', JSON.stringify(currentAdmin));
+          }
+        }
+        setUser(currentAdmin || null);
+        setBusiness(null);
+      } else {
+        // Customer / Public Session
+        const stored = localStorage.getItem('goldstamp_customer_user') || localStorage.getItem('goldstamp_user');
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            const foundUser = mockStore.getUserById(parsed.id) || mockStore.getUserByEmail(parsed.email);
+            if (foundUser && foundUser.role === 'CUSTOMER') {
+              setUser(foundUser);
+            } else if (foundUser) {
+              setUser(foundUser);
+            } else {
+              setUser(null);
+            }
+          } catch {
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
+        setBusiness(null);
+      }
+    } catch (err) {
+      console.error('Failed to resolve auth profile:', err);
+      setUser(null);
+      setBusiness(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshProfile();
+  }, [pathname]);
+
+  const login = async (email: string, password: string) => {
+    setLoading(true);
+    const res = await api.login({ email, password });
+    if (res.success && res.data) {
+      setUser(res.data.user);
+      setBusiness(res.data.business || null);
+      setLoading(false);
+      return { success: true };
+    }
+    setLoading(false);
+    return { success: false, error: res.error?.message || 'Login failed' };
+  };
+
+  const loginWithWhatsApp = async (phone: string, otp?: string) => {
+    setLoading(true);
+    try {
+      const res = await api.loginWithWhatsApp(phone, otp);
+      if (res.success && res.data) {
+        setUser(res.data.user);
+        setBusiness(null);
+        setLoading(false);
+        return { success: true };
+      }
+      setLoading(false);
+      return { success: false, error: res.error?.message || 'WhatsApp verification failed' };
+    } catch (err: any) {
+      setLoading(false);
+      return { success: false, error: err?.message || 'Failed to verify WhatsApp' };
+    }
+  };
+
+  const loginWithGoogle = async (googleData?: { email?: string; name?: string; avatar?: string }) => {
+    setLoading(true);
+    try {
+      const res = await api.loginWithGoogle(googleData);
+      if (res.success && res.data) {
+        setUser(res.data.user);
+        setBusiness(null);
+        setLoading(false);
+        return { success: true };
+      }
+      setLoading(false);
+      return { success: false, error: res.error?.message || 'Google sign-in failed' };
+    } catch (err: any) {
+      setLoading(false);
+      return { success: false, error: err?.message || 'Failed to sign in with Google' };
+    }
+  };
+
+  const register = async (data: any) => {
+    setLoading(true);
+    const res = await api.register(data);
+    if (res.success && res.data) {
+      setUser(res.data.user);
+      setBusiness(res.data.business || null);
+      setLoading(false);
+      return { success: true };
+    }
+    setLoading(false);
+    return { success: false, error: res.error?.message || 'Registration failed' };
+  };
+
+  const updateProfile = async (updates: { name?: string; phone?: string; email?: string }) => {
+    setLoading(true);
+    const res = await api.updateProfile(updates);
+    if (res.success && res.data) {
+      setUser(res.data);
+      setLoading(false);
+      return { success: true };
+    }
+    setLoading(false);
+    return { success: false, error: res.error?.message || 'Failed to update profile' };
+  };
+
+  const logout = () => {
+    if (typeof window !== 'undefined') {
+      if (isClientPortal) {
+        localStorage.removeItem('goldstamp_merchant_token');
+        localStorage.removeItem('goldstamp_merchant_user');
+        localStorage.removeItem('goldstamp_merchant_business');
+        setUser(null);
+        setBusiness(null);
+        window.location.href = '/client/login';
+      } else if (isAdminPortal) {
+        localStorage.removeItem('goldstamp_admin_token');
+        localStorage.removeItem('goldstamp_admin_user');
+        setUser(null);
+        setBusiness(null);
+        window.location.href = '/admin/login';
+      } else {
+        localStorage.removeItem('goldstamp_customer_token');
+        localStorage.removeItem('goldstamp_customer_user');
+        localStorage.removeItem('goldstamp_user');
+        localStorage.removeItem('goldstamp_token');
+        setUser(null);
+        setBusiness(null);
+        window.location.href = '/';
+      }
+    }
+  };
+
+  const switchDemoRole = async (target: 'admin' | 'smashzone' | 'cafe' | 'customer') => {
+    let email = 'alex@example.com';
+    let password = 'customer123';
+
+    if (target === 'admin') {
+      email = 'admin@example.com';
+      password = 'admin123';
+      const user = mockStore.getUserByEmail(email);
+      if (user && typeof window !== 'undefined') {
+        localStorage.setItem('goldstamp_admin_user', JSON.stringify(user));
+        localStorage.setItem('goldstamp_admin_token', `mock_admin_${Date.now()}`);
+      }
+      window.location.href = '/admin/dashboard';
+      return;
+    }
+
+    if (target === 'smashzone') {
+      email = 'owner@smashzone.com';
+      password = 'owner123';
+      const user = mockStore.getUserByEmail(email);
+      const biz = mockStore.getBusinessByOwnerId(user?.id);
+      if (user && typeof window !== 'undefined') {
+        localStorage.setItem('goldstamp_merchant_user', JSON.stringify(user));
+        localStorage.setItem('goldstamp_merchant_token', `mock_merchant_${Date.now()}`);
+        if (biz) localStorage.setItem('goldstamp_merchant_business', JSON.stringify(biz));
+      }
+      window.location.href = '/client/dashboard';
+      return;
+    }
+
+    if (target === 'cafe') {
+      email = 'owner@cafeartisan.com';
+      password = 'owner123';
+      const user = mockStore.getUserByEmail(email);
+      const biz = mockStore.getBusinessByOwnerId(user?.id);
+      if (user && typeof window !== 'undefined') {
+        localStorage.setItem('goldstamp_merchant_user', JSON.stringify(user));
+        localStorage.setItem('goldstamp_merchant_token', `mock_merchant_${Date.now()}`);
+        if (biz) localStorage.setItem('goldstamp_merchant_business', JSON.stringify(biz));
+      }
+      window.location.href = '/client/dashboard';
+      return;
+    }
+
+    // Customer
+    const user = mockStore.getUserByEmail('alex@example.com');
+    if (user && typeof window !== 'undefined') {
+      localStorage.setItem('goldstamp_customer_user', JSON.stringify(user));
+      localStorage.setItem('goldstamp_user', JSON.stringify(user));
+      localStorage.setItem('goldstamp_customer_token', `mock_customer_${Date.now()}`);
+    }
+    window.location.href = '/loyalty';
+  };
+
+  const impersonateBusiness = async (businessId: string) => {
+    if (typeof window === 'undefined') return;
+    const biz = mockStore.getRaw().businesses.find((b: any) => b.id === businessId);
+    if (!biz) return;
+    const owner = mockStore.getUserById(biz.ownerId) || mockStore.getUserByEmail('owner@smashzone.com');
+    localStorage.setItem('goldstamp_impersonation_biz_id', businessId);
+    if (owner) {
+      localStorage.setItem('goldstamp_merchant_user', JSON.stringify(owner));
+      localStorage.setItem('goldstamp_merchant_token', `mock_imp_${owner.id}`);
+    }
+    localStorage.setItem('goldstamp_merchant_business', JSON.stringify(biz));
+    setIsImpersonating(true);
+    setBusiness(biz);
+    if (owner) setUser(owner);
+    window.location.href = '/client/dashboard';
+  };
+
+  const stopImpersonation = async () => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem('goldstamp_impersonation_biz_id');
+    setIsImpersonating(false);
+    window.location.href = '/admin/businesses';
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        business,
+        loading,
+        isImpersonating,
+        login,
+        loginWithWhatsApp,
+        loginWithGoogle,
+        register,
+        updateProfile,
+        logout,
+        switchDemoRole,
+        refreshProfile,
+        impersonateBusiness,
+        stopImpersonation,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
