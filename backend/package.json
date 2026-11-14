@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "esbuild src/server.ts --bundle --platform=node --target=node18 --outfile=dist/server.js --external:@prisma/client --external:bcrypt --external:express --external:cors --external:helmet --external:morgan --external:jsonwebtoken --external:qrcode --external:zod",
+    "build": "esbuild src/server.ts --bundle --platform=node --target=node18 --outfile=dist/server.js --alias:@goldstamp/validation=../packages/validation/src/index.ts --alias:@goldstamp/config=../packages/config/src/index.ts --alias:@goldstamp/types=../packages/types/src/index.ts --external:@prisma/client --external:bcrypt --external:express --external:cors --external:helmet --external:morgan --external:jsonwebtoken --external:qrcode --external:zod",
     "start": "node dist/server.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
