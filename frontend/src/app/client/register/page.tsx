@@ -20,8 +20,6 @@ import {
   ShieldCheck,
   Send,
   ExternalLink,
-  Copy,
-  Check,
 } from 'lucide-react';
 
 const INDUSTRIES = [
@@ -36,6 +34,16 @@ const INDUSTRIES = [
   'Entertainment Venue',
   'Other Local Commerce',
 ];
+
+function getMailboxUrl(email: string): string {
+  const domain = email.split('@')[1]?.toLowerCase() || '';
+  if (domain.includes('gmail.com')) return 'https://mail.google.com';
+  if (domain.includes('outlook.com') || domain.includes('hotmail.com') || domain.includes('live.com'))
+    return 'https://outlook.live.com';
+  if (domain.includes('yahoo.com')) return 'https://mail.yahoo.com';
+  if (domain.includes('icloud.com')) return 'https://www.icloud.com/mail';
+  return `mailto:${email}`;
+}
 
 export default function MerchantRegisterPage() {
   const router = useRouter();
@@ -56,13 +64,11 @@ export default function MerchantRegisterPage() {
   // Email Confirmation Pending State
   const [pendingConfirmation, setPendingConfirmation] = useState<{
     email: string;
-    verificationToken: string;
     businessName: string;
   } | null>(null);
 
   const [resending, setResending] = useState(false);
   const [resendMsg, setResendMsg] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,7 +98,6 @@ export default function MerchantRegisterPage() {
         // Zero credentials stored until email confirmation
         setPendingConfirmation({
           email: res.email || formData.email,
-          verificationToken: res.verificationToken,
           businessName: res.businessName || formData.businessName,
         });
         setLoading(false);
@@ -113,11 +118,8 @@ export default function MerchantRegisterPage() {
     setResendMsg(null);
     try {
       const res = await api.resendMerchantVerification(pendingConfirmation.email);
-      if (res.success && res.data) {
-        setPendingConfirmation((prev) =>
-          prev ? { ...prev, verificationToken: res.data.verificationToken } : null
-        );
-        setResendMsg('A new confirmation email has been dispatched to your inbox.');
+      if (res.success) {
+        setResendMsg('A new verification email has been dispatched to your inbox.');
       } else {
         setError(res.error?.message || 'Failed to resend confirmation email.');
       }
@@ -128,17 +130,9 @@ export default function MerchantRegisterPage() {
     }
   };
 
-  const handleCopyLink = () => {
-    if (!pendingConfirmation?.verificationToken) return;
-    const url = `${window.location.origin}/client/verify-email?token=${pendingConfirmation.verificationToken}`;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  // Screen 1: Email Confirmation Pending Screen
+  // Screen 1: Email Confirmation Notice (No on-screen bypass links)
   if (pendingConfirmation) {
-    const verifyUrl = `/client/verify-email?token=${pendingConfirmation.verificationToken}`;
+    const mailboxUrl = getMailboxUrl(pendingConfirmation.email);
 
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative select-none">
@@ -153,56 +147,57 @@ export default function MerchantRegisterPage() {
 
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-8 sm:p-10 shadow-2xl backdrop-blur-xl text-center space-y-6">
             <div className="relative inline-flex">
-              <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20 animate-pulse">
                 <Mail className="w-8 h-8" />
               </div>
-              <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-xs">
-                ✓
-              </span>
             </div>
 
             <div>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] font-bold uppercase tracking-wider mb-2">
-                <ShieldCheck className="w-3.5 h-3.5" /> Authentication Pending
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] font-bold uppercase tracking-wider mb-3">
+                <ShieldCheck className="w-3.5 h-3.5" /> Verification Required
               </span>
-              <h1 className="text-2xl font-black text-white tracking-tight">Confirm Your Work Email</h1>
-              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+              <h1 className="text-2xl font-black text-white tracking-tight">
+                Sent a verification link to your mail
+              </h1>
+              <p className="text-xs text-slate-400 mt-2">
                 We have sent an authentication verification link to:
-                <strong className="block text-emerald-300 font-semibold text-sm mt-1">
-                  {pendingConfirmation.email}
-                </strong>
+              </p>
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 text-sm font-semibold text-emerald-400 my-2 break-all">
+                {pendingConfirmation.email}
+              </div>
+              <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                Go to your mail and verify it to activate your merchant account.
               </p>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-400 text-left space-y-1.5 leading-relaxed">
               <div className="flex items-center gap-1.5 text-slate-200 font-semibold">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>Zero-Trust Credential Security</span>
               </div>
               <p>
-                To protect store data and prevent unauthorized accounts, your merchant credentials and dashboard access
-                remain locked until your email is confirmed.
+                Your merchant credentials and console access will not be stored or activated until you click the confirmation link in your email.
               </p>
             </div>
 
-            {/* Quick action: Open confirmation link */}
+            {/* Direct action to open email app / webmail */}
             <div className="space-y-3 pt-2">
-              <Link
-                href={verifyUrl}
-                className="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2"
+              <a
+                href={mailboxUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2"
               >
-                <span>Click Here to Verify Email</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+                <span>Go to Mail & Open Inbox</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
 
-              <button
-                type="button"
-                onClick={handleCopyLink}
-                className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700/80 text-slate-300 text-xs font-medium border border-slate-700/60 transition flex items-center justify-center gap-2"
+              <Link
+                href="/client/login"
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700/80 text-slate-300 text-xs font-semibold border border-slate-700/60 transition flex items-center justify-center gap-2"
               >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'Link Copied to Clipboard!' : 'Copy Verification URL'}</span>
-              </button>
+                <span>Back to Merchant Login</span>
+              </Link>
             </div>
 
             {resendMsg && (
@@ -212,17 +207,15 @@ export default function MerchantRegisterPage() {
             )}
 
             <div className="pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+              <span className="text-[11px]">Didn't get the email?</span>
               <button
                 type="button"
                 onClick={handleResend}
                 disabled={resending}
-                className="text-emerald-400 hover:underline disabled:opacity-50"
+                className="text-emerald-400 hover:underline font-medium disabled:opacity-50"
               >
-                {resending ? 'Sending...' : 'Resend Email'}
+                {resending ? 'Sending...' : 'Resend verification link'}
               </button>
-              <Link href="/client/login" className="hover:text-white transition">
-                Return to Login →
-              </Link>
             </div>
           </div>
         </div>
@@ -267,7 +260,7 @@ export default function MerchantRegisterPage() {
                   required
                   value={formData.businessName}
                   onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-                  placeholder="e.g. SmashZone Sports Arena"
+                  placeholder="e.g. Apex Sports Arena"
                   className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-600 transition"
                 />
               </div>
@@ -327,7 +320,7 @@ export default function MerchantRegisterPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-slate-300 block mb-1.5">
-                Work Email <span className="text-emerald-400 font-normal">(Confirmation required)</span>
+                Work Email <span className="text-emerald-400 font-normal">(Verification link will be sent)</span>
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />

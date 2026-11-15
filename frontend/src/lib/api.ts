@@ -1,4 +1,5 @@
 import { mockStore } from './mockStore';
+import { createClient } from '../utils/supabase/client';
 import QRCode from 'qrcode';
 import {
   sanitizeText,
@@ -182,7 +183,7 @@ export const api = {
   },
 
   register: async (data: any): Promise<ApiResponse<any>> => {
-    return asyncWrap(() => {
+    return asyncWrap(async () => {
       const isMerchant = data.role === 'BUSINESS_OWNER' || !!data.businessName;
       if (isMerchant) {
         // Strict Merchant Email Confirmation: Do NOT save credentials to active DB or localStorage
@@ -195,6 +196,30 @@ export const api = {
           city: data.city,
           password: data.password,
         });
+
+        // Trigger real confirmation email delivery via Supabase Auth
+        if (typeof window !== 'undefined') {
+          try {
+            const supabase = createClient();
+            const verifyUrl = `${window.location.origin}/client/verify-email?token=${pending.verificationToken}`;
+            await supabase.auth.signUp({
+              email: pending.email,
+              password: data.password,
+              options: {
+                emailRedirectTo: verifyUrl,
+                data: {
+                  businessName: data.businessName,
+                  ownerName: data.ownerName || data.name,
+                  role: 'BUSINESS_OWNER',
+                },
+              },
+            }).catch((err) => {
+              console.warn('Supabase auth signup notice:', err);
+            });
+          } catch (err) {
+            console.warn('Email dispatch service note:', err);
+          }
+        }
 
         return {
           pending: true,
@@ -232,8 +257,29 @@ export const api = {
   },
 
   resendMerchantVerification: async (email: string): Promise<ApiResponse<any>> => {
-    return asyncWrap(() => {
-      return mockStore.resendMerchantVerificationEmail(email);
+    return asyncWrap(async () => {
+      const res = mockStore.resendMerchantVerificationEmail(email);
+
+      // Resend real confirmation email via Supabase Auth
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+          const verifyUrl = `${window.location.origin}/client/verify-email?token=${res.verificationToken}`;
+          await supabase.auth.resend({
+            type: 'signup',
+            email: res.email,
+            options: {
+              emailRedirectTo: verifyUrl,
+            },
+          }).catch((err) => {
+            console.warn('Supabase auth resend notice:', err);
+          });
+        } catch (err) {
+          console.warn('Email resend service note:', err);
+        }
+      }
+
+      return res;
     }, 'Verification email resent');
   },
 

@@ -4,6 +4,8 @@ import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '../../../lib/api';
+import { createClient } from '../../../utils/supabase/client';
+import { mockStore } from '../../../lib/mockStore';
 import {
   CheckCircle2,
   AlertCircle,
@@ -32,14 +34,30 @@ function VerifyEmailContent() {
 
   useEffect(() => {
     async function verify() {
-      if (!token) {
+      let activeToken = token;
+
+      // If token not present directly in query, check if user arrived from Supabase auth email confirmation
+      if (!activeToken && typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+          const { data } = await supabase.auth.getUser();
+          if (data?.user?.email) {
+            const pending = mockStore.getPendingVerificationByEmail(data.user.email);
+            if (pending) {
+              activeToken = pending.verificationToken;
+            }
+          }
+        } catch {}
+      }
+
+      if (!activeToken) {
         setVerifying(false);
-        setError('No verification token provided in the link. Please open the confirmation link sent to your email.');
+        setError('No verification token detected in the link. Please open the confirmation link sent to your email.');
         return;
       }
 
       try {
-        const res = await api.verifyMerchantEmail(token);
+        const res = await api.verifyMerchantEmail(activeToken);
         if (res.success && res.data) {
           setSuccess(true);
           setMerchantData({
