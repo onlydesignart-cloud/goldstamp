@@ -23,10 +23,7 @@ export interface ApiResponse<T = any> {
 }
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  (typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname)
-    ? 'https://stamp.harshaicreations.com'
-    : 'http://localhost:4000');
+  process.env.NEXT_PUBLIC_API_URL || 'https://goldstamp.onrender.com';
 
 // Helper to simulate instant async execution
 const asyncWrap = async <T>(fn: () => T | Promise<T>, message: string = 'Success'): Promise<ApiResponse<T>> => {
@@ -65,19 +62,91 @@ const getActiveUserId = (): string => {
 export const api = {
   // --- Auth ---
   login: async (credentials: any): Promise<ApiResponse<any>> => {
-    return asyncWrap(() => {
-      const email = sanitizeEmail(credentials.email);
+    const email = sanitizeEmail(credentials.email);
 
-      // Check if this merchant email is still awaiting confirmation
-      const pending = mockStore.getPendingVerificationByEmail(email);
-      if (pending) {
-        throw new Error('EMAIL_NOT_VERIFIED: Your account is pending email confirmation. Please click the verification link sent to your email to activate your account.');
+    // Check if this merchant email is awaiting confirmation
+    const pending = mockStore.getPendingVerificationByEmail(email);
+    if (pending) {
+      return {
+        success: false,
+        error: {
+          code: 'EMAIL_NOT_VERIFIED',
+          message: 'EMAIL_NOT_VERIFIED: Your account is pending email confirmation. Please click the activation link in your email to authenticate.',
+        },
+      };
+    }
+
+    // 1. Try real live backend API (PostgreSQL Supabase)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: credentials.email,
+          password: credentials.password,
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        const { user, business, accessToken, refreshToken } = json.data;
+
+        if (typeof window !== 'undefined') {
+          const path = window.location.pathname;
+          const isClient = path.startsWith('/client') || user.role === 'BUSINESS_OWNER' || user.role === 'BUSINESS_STAFF';
+          const isAdmin = path.startsWith('/admin') || path.startsWith('/vault-master-gs-8821') || user.role === 'SUPER_ADMIN';
+
+          if (isClient) {
+            localStorage.setItem('goldstamp_merchant_token', accessToken);
+            localStorage.setItem('goldstamp_merchant_user', JSON.stringify(user));
+            if (business) {
+              localStorage.setItem('goldstamp_merchant_business', JSON.stringify(business));
+            }
+          } else if (isAdmin) {
+            localStorage.setItem('goldstamp_admin_token', accessToken);
+            localStorage.setItem('goldstamp_admin_user', JSON.stringify(user));
+          } else {
+            localStorage.setItem('goldstamp_customer_token', accessToken);
+            localStorage.setItem('goldstamp_customer_user', JSON.stringify(user));
+          }
+          localStorage.setItem('goldstamp_token', accessToken);
+          if (refreshToken) {
+            localStorage.setItem('goldstamp_refresh_token', refreshToken);
+          }
+        }
+
+        mockStore.syncUser(user);
+        if (business) mockStore.syncBusiness(business);
+
+        return {
+          success: true,
+          data: {
+            user,
+            business,
+            accessToken,
+            refreshToken,
+          },
+          message: 'Login successful',
+        };
+      } else if (json.error?.code === 'INVALID_CREDENTIALS') {
+        return {
+          success: false,
+          error: {
+            code: 'INVALID_CREDENTIALS',
+            message: 'Invalid email or password.',
+          },
+        };
       }
+    } catch (netErr) {
+      console.warn('Backend login network notice, falling back to local store:', netErr);
+    }
 
+    // 2. Local fallback
+    return asyncWrap(() => {
       const user = mockStore.getUserByEmail(email);
       if (!user) throw new Error('Account with this email does not exist');
       
-      const token = `mock_jwt_${user.id}_${Date.now()}`;
+      const token = `jwt_${user.id}_${Date.now()}`;
       const business = (user.role === 'BUSINESS_OWNER' || user.role === 'BUSINESS_STAFF')
         ? mockStore.getBusinessByOwnerId(user.id)
         : null;
@@ -99,7 +168,6 @@ export const api = {
         } else {
           localStorage.setItem('goldstamp_customer_token', token);
           localStorage.setItem('goldstamp_customer_user', JSON.stringify(user));
-          localStorage.setItem('goldstamp_user', JSON.stringify(user));
         }
         localStorage.setItem('goldstamp_token', token);
       }
@@ -108,7 +176,7 @@ export const api = {
         user,
         business,
         accessToken: token,
-        refreshToken: `mock_refresh_${user.id}`,
+        refreshToken: `refresh_${user.id}`,
       };
     }, 'Login successful');
   },
@@ -185,8 +253,40 @@ export const api = {
   register: async (data: any): Promise<ApiResponse<any>> => {
     return asyncWrap(async () => {
       const isMerchant = data.role === 'BUSINESS_OWNER' || !!data.businessName;
+
+      // 1. Send registration to live Render Backend (directly writing to Supabase User, Business, Subscription tables)
+      let backendData: any = null;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: data.name || data.ownerName,
+            email: data.email,
+            phone: data.phone || '',
+            password: data.password,
+            role: isMerchant ? 'BUSINESS_OWNER' : 'CUSTOMER',
+            businessName: isMerchant ? data.businessName : undefined,
+          }),
+        });
+
+        const json = await res.json();
+        if (res.ok && json.success && json.data) {
+          backendData = json.data;
+          if (backendData.user) mockStore.syncUser(backendData.user);
+          if (backendData.business) mockStore.syncBusiness(backendData.business);
+        } else if (json.error?.code === 'EMAIL_EXISTS' || json.message?.includes('already exists')) {
+          throw new Error('An account with this email address is already registered.');
+        }
+      } catch (err: any) {
+        if (err.message?.includes('already registered')) {
+          throw err;
+        }
+        console.warn('Backend registration API note:', err);
+      }
+
       if (isMerchant) {
-        // Strict Merchant Email Confirmation: Do NOT save credentials to active DB or localStorage
+        // Strict Merchant Email Confirmation: Do NOT save credentials to active session
         const pending = mockStore.createPendingMerchantRegistration({
           businessName: data.businessName,
           ownerName: data.name || data.ownerName,
@@ -226,6 +326,7 @@ export const api = {
           email: pending.email,
           verificationToken: pending.verificationToken,
           businessName: pending.businessName,
+          backendBusiness: backendData?.business || null,
           message: 'Verification link dispatched to your email address.',
         };
       }
@@ -233,8 +334,8 @@ export const api = {
       const existing = mockStore.getUserByEmail(data.email);
       if (existing) throw new Error('Email is already registered');
 
-      const user = mockStore.createUser(data);
-      const token = `mock_jwt_${user.id}_${Date.now()}`;
+      const user = backendData?.user || mockStore.createUser(data);
+      const token = backendData?.accessToken || `mock_jwt_${user.id}_${Date.now()}`;
 
       if (typeof window !== 'undefined') {
         localStorage.setItem('goldstamp_customer_token', token);
@@ -354,6 +455,20 @@ export const api = {
 
   // --- Businesses ---
   getPublicBusinesses: async (paramsStr: string = ''): Promise<ApiResponse<any>> => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/businesses${paramsStr ? `?${paramsStr}` : ''}`);
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        json.data.forEach((b: any) => mockStore.syncBusiness(b));
+        return {
+          success: true,
+          data: json.data,
+        };
+      }
+    } catch (e) {
+      console.warn('Live backend fetch businesses note:', e);
+    }
+
     return asyncWrap(() => {
       const params = new URLSearchParams(paramsStr);
       const industry = params.get('industry') || undefined;
@@ -739,6 +854,19 @@ export const api = {
 
   // --- Platform Admin ---
   getAdminBusinesses: async (query: string = ''): Promise<ApiResponse<any>> => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/businesses${query ? `?search=${encodeURIComponent(query)}` : ''}`);
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        json.data.forEach((b: any) => mockStore.syncBusiness(b));
+        return {
+          success: true,
+          data: json.data,
+        };
+      }
+    } catch (e) {
+      console.warn('Live backend getAdminBusinesses note:', e);
+    }
     return asyncWrap(() => mockStore.getRaw().businesses);
   },
 

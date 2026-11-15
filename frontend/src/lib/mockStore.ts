@@ -541,6 +541,30 @@ class MockDataStore {
     return this.getDb();
   }
 
+  public syncUser(user: any) {
+    if (!user) return;
+    const db = this.getDb();
+    const idx = db.users.findIndex((u) => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+    if (idx >= 0) {
+      db.users[idx] = { ...db.users[idx], ...user };
+    } else {
+      db.users.push(user);
+    }
+    this.saveDb(db);
+  }
+
+  public syncBusiness(business: any) {
+    if (!business) return;
+    const db = this.getDb();
+    const idx = db.businesses.findIndex((b) => b.id === business.id || b.slug === business.slug);
+    if (idx >= 0) {
+      db.businesses[idx] = { ...db.businesses[idx], ...business };
+    } else {
+      db.businesses.push(business);
+    }
+    this.saveDb(db);
+  }
+
   // --- Merchant Email Confirmation & Authentication Flow ---
   public createPendingMerchantRegistration(data: {
     businessName: string;
