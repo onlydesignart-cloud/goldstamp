@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { api } from '../../../lib/api';
 import { exportToCsv } from '../../../lib/exportCsv';
+import { ADMIN_ROUTE_PREFIX } from '../../../config/adminRoute';
 import {
   CreditCard,
   DollarSign,
@@ -90,7 +91,6 @@ export default function AdminSubscriptionsPage() {
   const cadenceTrend = data?.cadenceTrend || [];
   const invoices = data?.invoices || [];
 
-  // Filter subscribers list
   const filteredSubscribers = subscribers.filter((s) => {
     const matchesSearch =
       s.businessName.toLowerCase().includes(search.toLowerCase()) ||
@@ -100,23 +100,23 @@ export default function AdminSubscriptionsPage() {
 
     if (!matchesSearch) return false;
 
-    if (cadenceFilter === 'ANNUAL') return s.isAnnual && s.status === 'ACTIVE';
-    if (cadenceFilter === 'MONTHLY') return !s.isAnnual && s.status === 'ACTIVE';
-    if (cadenceFilter === 'TRIAL') return s.status === 'TRIAL' || s.status === 'PENDING';
+    if (cadenceFilter === 'ANNUAL') return s.isAnnual;
+    if (cadenceFilter === 'MONTHLY') return !s.isAnnual && s.status !== 'TRIAL';
+    if (cadenceFilter === 'TRIAL') return s.status === 'TRIAL';
     return true;
   });
 
   const handleExportCsv = () => {
     const headers = [
-      'Business Venue',
+      'Business Name',
       'Owner',
       'City',
       'Plan Tier',
       'Billing Cadence',
-      'Effective Rate (INR/mo)',
-      'Billed Amount (INR/yr)',
-      'Annual Savings (INR)',
-      'Next Renewal',
+      'Discount Applied',
+      'Monthly Equivalent (INR)',
+      'Annual Total (INR)',
+      'Savings Granted (INR)',
       'Payment Method',
       'Status',
     ];
@@ -126,16 +126,16 @@ export default function AdminSubscriptionsPage() {
       s.businessOwner,
       s.businessCity,
       s.planName,
-      s.isAnnual ? 'ANNUAL (20% OFF)' : s.status === 'TRIAL' ? '14-DAY TRIAL' : 'Monthly Standard',
+      s.isAnnual ? 'Annual (20% OFF)' : s.status === 'TRIAL' ? '14-Day Trial' : 'Monthly Standard',
+      s.isAnnual ? '20% Ongoing' : 'None',
       s.effectiveMonthlyPrice,
-      s.billedAmount,
+      s.isAnnual ? s.billedAmount : s.effectiveMonthlyPrice * 12,
       s.annualSavings,
-      s.currentPeriodEnd ? new Date(s.currentPeriodEnd).toLocaleDateString() : 'Auto-renew',
       s.paymentMethod,
       s.status,
     ]);
 
-    exportToCsv(`goldstamp_subscribers_report_${Date.now()}`, headers, rows);
+    exportToCsv(`goldstamp_subscribers_${Date.now()}`, headers, rows);
   };
 
   return (
@@ -145,7 +145,7 @@ export default function AdminSubscriptionsPage() {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              SaaS Subscription Analytics
+              Subscriptions & Billing Economics
             </h1>
             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
               <Sparkles className="w-3 h-3 text-emerald-400" />
@@ -160,10 +160,10 @@ export default function AdminSubscriptionsPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportCsv}
-            className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition border border-slate-700 shadow-sm flex items-center gap-1.5 text-xs font-semibold"
+            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition border border-slate-700 shadow-sm flex items-center gap-1.5 text-xs font-semibold"
           >
             <Download className="w-3.5 h-3.5 text-emerald-400" />
-            Export Subscribers CSV
+            <span className="hidden sm:inline">Export Subscribers CSV</span>
           </button>
           <button
             onClick={loadData}
@@ -174,7 +174,7 @@ export default function AdminSubscriptionsPage() {
             <span className="hidden sm:inline">Refresh</span>
           </button>
           <Link
-            href="/admin/businesses"
+            href={`${ADMIN_ROUTE_PREFIX}/businesses`}
             className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-1.5"
           >
             <Building2 className="w-3.5 h-3.5" />
@@ -185,8 +185,7 @@ export default function AdminSubscriptionsPage() {
 
       {/* Top 5 Precision KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
-        {/* MRR Card */}
-        <div className="bg-slate-800/80 border border-slate-700/80 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
+        <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-slate-400">Monthly Recurring (MRR)</span>
@@ -198,38 +197,53 @@ export default function AdminSubscriptionsPage() {
               {loading ? '...' : `₹${summary.totalMRR.toLocaleString()}`}
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[10px] text-slate-400">
-            <span>Annual Run Rate (ARR)</span>
+          <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
+            <span>Annual Run-Rate</span>
             <span className="font-bold text-emerald-400">₹{summary.totalARR.toLocaleString()}</span>
           </div>
         </div>
 
-        {/* Annual Adoption Rate Card */}
-        <div className="bg-slate-800/80 border border-purple-500/30 p-4 rounded-2xl flex flex-col justify-between shadow-sm bg-gradient-to-br from-slate-800/80 to-purple-950/20">
+        <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-purple-300">Annual 20% Off Adoption</span>
-              <div className="p-1.5 rounded-xl bg-purple-500/10 border border-purple-500/25">
-                <Percent className="w-3.5 h-3.5 text-purple-400" />
+              <span className="text-[11px] font-semibold text-slate-400">Active Subscribers</span>
+              <div className="p-1.5 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                <CreditCard className="w-3.5 h-3.5 text-purple-400" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-black text-white mt-2 tracking-tight flex items-baseline gap-2">
-              <span>{loading ? '...' : `${summary.annualAdoptionRate}%`}</span>
-              <span className="text-xs font-semibold text-purple-400">High LTV</span>
+            <div className="text-xl sm:text-2xl font-black text-white mt-2 tracking-tight">
+              {loading ? '...' : summary.activeSubscribers}
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[10px] text-slate-300">
-            <span>Annual vs Monthly</span>
-            <span className="font-bold text-purple-300">{summary.annualSubscribers} of {summary.activeSubscribers} Active</span>
+          <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
+            <span>Paid Tenants</span>
+            <span className="font-bold text-purple-400">{summary.totalSubscribers} total</span>
           </div>
         </div>
 
-        {/* Total Annual Merchant Savings Card */}
-        <div className="bg-slate-800/80 border border-amber-500/30 p-4 rounded-2xl flex flex-col justify-between shadow-sm bg-gradient-to-br from-slate-800/80 to-amber-950/20">
+        <div className="bg-slate-900/90 border border-emerald-500/30 p-4 rounded-2xl flex flex-col justify-between shadow-sm bg-gradient-to-br from-slate-900/90 to-emerald-950/20">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-emerald-300">Annual Adoption Rate</span>
+              <div className="p-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                <Percent className="w-3.5 h-3.5 text-emerald-400" />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-2 tracking-tight">
+              {loading ? '...' : `${summary.annualAdoptionRate}%`}
+            </div>
+          </div>
+          <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
+            <span>Chose 20% OFF</span>
+            <span className="font-bold text-emerald-400">{summary.annualSubscribers} of {summary.activeSubscribers} venues</span>
+          </div>
+        </div>
+
+        <div className="bg-slate-900/90 border border-amber-500/30 p-4 rounded-2xl flex flex-col justify-between shadow-sm bg-gradient-to-br from-slate-900/90 to-amber-950/20">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-amber-300">Annual Savings Given</span>
-              <div className="p-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25">
+              <div className="p-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
               </div>
             </div>
@@ -237,160 +251,34 @@ export default function AdminSubscriptionsPage() {
               {loading ? '...' : `₹${summary.totalAnnualSavingsGranted.toLocaleString()}`}
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[10px] text-slate-400">
-            <span>20% Discount Incentive</span>
-            <span className="font-bold text-amber-400">Zero Churn Lock</span>
+          <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
+            <span>20% Discount Given</span>
+            <span className="font-bold text-amber-400">Rewarded upfront</span>
           </div>
         </div>
 
-        {/* Active Paying Subscribers Card */}
-        <div className="bg-slate-800/80 border border-slate-700/80 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
+        <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-slate-400">Active Paying Tenants</span>
+              <span className="text-[11px] font-semibold text-slate-400">Avg Revenue / Account</span>
               <div className="p-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
-                <CreditCard className="w-3.5 h-3.5 text-blue-400" />
-              </div>
-            </div>
-            <div className="text-xl sm:text-2xl font-black text-white mt-2 tracking-tight">
-              {loading ? '...' : summary.activeSubscribers}
-            </div>
-          </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[10px] text-slate-400">
-            <span>In Free Trial</span>
-            <span className="font-bold text-slate-300">{summary.trialSubscribers} Venue</span>
-          </div>
-        </div>
-
-        {/* ARPU Card */}
-        <div className="bg-slate-800/80 border border-slate-700/80 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-slate-400">Blended ARPU</span>
-              <div className="p-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
-                <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+                <TrendingUp className="w-3.5 h-3.5 text-blue-400" />
               </div>
             </div>
             <div className="text-xl sm:text-2xl font-black text-white mt-2 tracking-tight">
               {loading ? '...' : `₹${summary.arpu.toLocaleString()}`}
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[10px] text-slate-400">
-            <span>Avg Yield / Tenant</span>
-            <span className="font-bold text-cyan-400">Monthly</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Cadence Breakdown: Annual (20% OFF) vs Monthly Analysis Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Annual Card */}
-        <div className="bg-slate-800/90 border border-emerald-500/30 p-5 sm:p-6 rounded-3xl relative overflow-hidden shadow-lg bg-gradient-to-br from-slate-900 via-slate-800/90 to-emerald-950/20">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-white">Annual Cadence (20% OFF)</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase">
-                    Preferred
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Merchants commit annually to save 20% each month (billed upfront for 12 months).
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-3 gap-3 pt-4 border-t border-slate-700/60 text-center">
-            <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-medium">Subscribers</span>
-              <span className="text-lg font-black text-white mt-1 block">
-                {cadenceBreakdown.annual.count} ({cadenceBreakdown.annual.percentage}%)
-              </span>
-            </div>
-            <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-medium">MRR Contribution</span>
-              <span className="text-lg font-black text-emerald-400 mt-1 block">
-                ₹{cadenceBreakdown.annual.mrrContribution.toLocaleString()}/mo
-              </span>
-            </div>
-            <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-medium">Annual Savings Passed</span>
-              <span className="text-lg font-black text-amber-400 mt-1 block">
-                ₹{cadenceBreakdown.annual.totalSavingsGiven.toLocaleString()}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center justify-between text-[11px] text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-xl">
-            <span className="font-semibold flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              100% upfront capital collection & 0% annualized churn
-            </span>
-            <span className="font-bold">ARR: ₹{cadenceBreakdown.annual.arrContribution.toLocaleString()}</span>
-          </div>
-        </div>
-
-        {/* Monthly Standard Card */}
-        <div className="bg-slate-800/90 border border-slate-700 p-5 sm:p-6 rounded-3xl relative overflow-hidden shadow-lg bg-gradient-to-br from-slate-900 via-slate-800/90 to-slate-900">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-slate-700/60 text-slate-300 border border-slate-600">
-                <Calendar className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-white">Monthly Cadence (Standard Rate)</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-slate-300 uppercase">
-                    Standard
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Tenants billed regular monthly rate without discounts, renewed every 30 days.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-3 gap-3 pt-4 border-t border-slate-700/60 text-center">
-            <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-medium">Subscribers</span>
-              <span className="text-lg font-black text-white mt-1 block">
-                {cadenceBreakdown.monthly.count} ({cadenceBreakdown.monthly.percentage}%)
-              </span>
-            </div>
-            <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-medium">MRR Contribution</span>
-              <span className="text-lg font-black text-slate-200 mt-1 block">
-                ₹{cadenceBreakdown.monthly.mrrContribution.toLocaleString()}/mo
-              </span>
-            </div>
-            <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-medium">Discount Given</span>
-              <span className="text-lg font-black text-slate-400 mt-1 block">
-                ₹0 (None)
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center justify-between text-[11px] text-slate-400 bg-slate-900/80 border border-slate-700 px-3.5 py-2 rounded-xl">
-            <span className="font-semibold flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-slate-400" />
-              Flexible monthly commitment via recurring UPI AutoPay
-            </span>
-            <span className="font-bold text-slate-300">ARR: ₹{cadenceBreakdown.monthly.arrContribution.toLocaleString()}</span>
+          <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
+            <span>Blended ARPU</span>
+            <span className="font-bold text-blue-400">Per subscriber</span>
           </div>
         </div>
       </div>
 
       {/* Cadence Revenue Trend & Plan Tier Allocation */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recharts Area Chart: Revenue by Billing Cadence */}
-        <div className="lg:col-span-2 bg-slate-800/80 border border-slate-700/80 p-6 rounded-3xl space-y-4 shadow-sm">
+        <div className="lg:col-span-2 bg-slate-900/90 border border-slate-800 p-6 rounded-3xl space-y-4 shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
@@ -425,7 +313,7 @@ export default function AdminSubscriptionsPage() {
                       <stop offset="95%" stopColor="#38bdf8" stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.6} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.4} />
                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <YAxis
                     tick={{ fontSize: 11, fill: '#94a3b8' }}
@@ -434,12 +322,14 @@ export default function AdminSubscriptionsPage() {
                     tickFormatter={(val) => `₹${val}`}
                   />
                   <Tooltip
+                    cursor={false}
                     contentStyle={{
                       backgroundColor: '#0f172a',
                       borderRadius: '14px',
                       color: '#ffffff',
                       border: '1px solid #334155',
                       fontSize: '12px',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.6)',
                     }}
                     formatter={(val: any, name: any) => [`₹${Number(val).toLocaleString()}`, name]}
                   />
@@ -465,18 +355,17 @@ export default function AdminSubscriptionsPage() {
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                Loading cadence telemetry...
+                Synthesizing cadence telemetry...
               </div>
             )}
           </div>
         </div>
 
-        {/* Tier Distribution breakdown */}
-        <div className="bg-slate-800/80 border border-slate-700/80 p-6 rounded-3xl space-y-4 shadow-sm flex flex-col justify-between">
+        <div className="bg-slate-900/90 border border-slate-800 p-6 rounded-3xl space-y-4 shadow-xl flex flex-col justify-between">
           <div>
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               <Layers className="w-4 h-4 text-purple-400" />
-              Plan Tier Distribution
+              SaaS Pricing Tier Distribution
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               Active subscriber allocation across SaaS pricing tiers.
@@ -487,7 +376,7 @@ export default function AdminSubscriptionsPage() {
                 const totalActive = summary.activeSubscribers || 1;
                 const percent = Math.round((p.subscribersCount / totalActive) * 100);
                 return (
-                  <div key={p.id} className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-700/80 space-y-2">
+                  <div key={p.id} className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="text-xs font-bold text-white">{p.name} Tier</span>
@@ -521,13 +410,13 @@ export default function AdminSubscriptionsPage() {
 
           <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-[11px] text-purple-300 flex items-center gap-2">
             <Zap className="w-4 h-4 text-purple-400 shrink-0" />
-            <span>Growth Tier is the most popular choice among pickleball arenas & cafes.</span>
+            <span>Growth Tier is the most popular choice among venues.</span>
           </div>
         </div>
       </div>
 
-      {/* Detailed Subscribers Directory Table with 20% Annual Highlights */}
-      <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl overflow-hidden shadow-lg space-y-4 p-6">
+      {/* Detailed Subscribers Directory Table - With Non-wrapping columns */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl overflow-hidden shadow-xl space-y-4 p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-base font-bold text-white flex items-center gap-2">
@@ -539,8 +428,7 @@ export default function AdminSubscriptionsPage() {
             </p>
           </div>
 
-          {/* Filter Pills */}
-          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-900/90 border border-slate-700 rounded-2xl">
+          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-2xl">
             <button
               onClick={() => setCadenceFilter('ALL')}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
@@ -593,26 +481,26 @@ export default function AdminSubscriptionsPage() {
             placeholder="Search subscriber by business name, owner, city, or plan..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-slate-700 bg-slate-900/90 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-700 bg-slate-950 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
           />
         </div>
 
-        {/* Subscribers Table */}
-        <div className="overflow-x-auto rounded-2xl border border-slate-700/60">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900/90 text-slate-400 uppercase font-semibold border-b border-slate-700">
+        {/* Subscribers Table with min-width to prevent word cutting */}
+        <div className="overflow-x-auto rounded-2xl border border-slate-800">
+          <table className="w-full min-w-[1050px] text-left text-xs">
+            <thead className="bg-slate-950 text-slate-400 uppercase font-semibold text-[10px] border-b border-slate-800">
               <tr>
-                <th className="px-5 py-3.5">Business Venue</th>
-                <th className="px-4 py-3.5">Pricing Tier</th>
-                <th className="px-4 py-3.5">Billing Cadence & Discount</th>
-                <th className="px-4 py-3.5">Effective Rate</th>
-                <th className="px-4 py-3.5">Annual Billed Total & Savings</th>
-                <th className="px-4 py-3.5">Next Renewal</th>
-                <th className="px-4 py-3.5">Payment Method</th>
-                <th className="px-4 py-3.5 text-right">Status</th>
+                <th className="px-5 py-3.5 min-w-[200px] whitespace-nowrap">Business Venue</th>
+                <th className="px-4 py-3.5 min-w-[120px] whitespace-nowrap">Pricing Tier</th>
+                <th className="px-4 py-3.5 min-w-[180px] whitespace-nowrap">Billing Cadence & Discount</th>
+                <th className="px-4 py-3.5 min-w-[130px] whitespace-nowrap">Effective Rate</th>
+                <th className="px-4 py-3.5 min-w-[180px] whitespace-nowrap">Annual Billed Total & Savings</th>
+                <th className="px-4 py-3.5 min-w-[130px] whitespace-nowrap">Next Renewal</th>
+                <th className="px-4 py-3.5 min-w-[130px] whitespace-nowrap">Payment Method</th>
+                <th className="px-4 py-3.5 min-w-[100px] text-right whitespace-nowrap">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700/50">
+            <tbody className="divide-y divide-slate-800">
               {filteredSubscribers.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-8 text-center text-slate-500">
@@ -621,9 +509,8 @@ export default function AdminSubscriptionsPage() {
                 </tr>
               ) : (
                 filteredSubscribers.map((sub) => (
-                  <tr key={sub.id} className="hover:bg-slate-700/20 transition">
-                    {/* Business Info */}
-                    <td className="px-5 py-4">
+                  <tr key={sub.id} className="hover:bg-slate-800/40 transition">
+                    <td className="px-5 py-4 whitespace-nowrap">
                       <div>
                         <p className="font-bold text-white text-xs">{sub.businessName}</p>
                         <p className="text-[11px] text-slate-400 mt-0.5">
@@ -635,15 +522,13 @@ export default function AdminSubscriptionsPage() {
                       </div>
                     </td>
 
-                    {/* Plan */}
-                    <td className="px-4 py-4">
-                      <span className="font-semibold text-white px-2.5 py-1 rounded-lg bg-slate-700/60 border border-slate-600/60 inline-block text-[11px]">
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="font-semibold text-white px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 inline-block text-[11px]">
                         {sub.planName}
                       </span>
                     </td>
 
-                    {/* Billing Cadence with 20% OFF tag */}
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-4 whitespace-nowrap">
                       {sub.isAnnual ? (
                         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold">
                           <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
@@ -655,14 +540,13 @@ export default function AdminSubscriptionsPage() {
                           14-DAY TRIAL
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-xl bg-slate-700/50 border border-slate-600 text-slate-300 font-medium">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 font-medium">
                           Monthly Standard
                         </span>
                       )}
                     </td>
 
-                    {/* Effective Rate */}
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-4 whitespace-nowrap">
                       {sub.isAnnual ? (
                         <div>
                           <div className="flex items-center gap-1.5">
@@ -684,8 +568,7 @@ export default function AdminSubscriptionsPage() {
                       )}
                     </td>
 
-                    {/* Annual Billed & Savings */}
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-4 whitespace-nowrap">
                       {sub.isAnnual ? (
                         <div>
                           <p className="font-bold text-white">
@@ -705,8 +588,7 @@ export default function AdminSubscriptionsPage() {
                       )}
                     </td>
 
-                    {/* Renewal Date */}
-                    <td className="px-4 py-4 text-slate-300">
+                    <td className="px-4 py-4 whitespace-nowrap text-slate-300">
                       <div>
                         <p className="font-medium">
                           {sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) : 'Ongoing'}
@@ -715,13 +597,11 @@ export default function AdminSubscriptionsPage() {
                       </div>
                     </td>
 
-                    {/* Payment Method */}
-                    <td className="px-4 py-4 text-slate-400 font-mono text-[11px]">
+                    <td className="px-4 py-4 text-slate-400 font-mono text-[11px] whitespace-nowrap">
                       {sub.paymentMethod}
                     </td>
 
-                    {/* Status */}
-                    <td className="px-4 py-4 text-right">
+                    <td className="px-4 py-4 text-right whitespace-nowrap">
                       <span
                         className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
                           sub.status === 'ACTIVE'
@@ -735,65 +615,6 @@ export default function AdminSubscriptionsPage() {
                   </tr>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Recent Tax Invoices Audit Table */}
-      <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-6 space-y-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <Receipt className="w-4 h-4 text-purple-400" />
-              Recent SaaS Tax Invoices Generated
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Automated invoice records with GST & single-use reference IDs for active tenant payments.
-            </p>
-          </div>
-          <span className="text-xs text-slate-400 font-medium">
-            {invoices.length} Total Invoices
-          </span>
-        </div>
-
-        <div className="overflow-x-auto rounded-2xl border border-slate-700/60">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900/90 text-slate-400 uppercase font-semibold border-b border-slate-700">
-              <tr>
-                <th className="px-5 py-3.5">Invoice ID</th>
-                <th className="px-4 py-3.5">Plan Invoiced</th>
-                <th className="px-4 py-3.5">Amount Billed</th>
-                <th className="px-4 py-3.5">Date</th>
-                <th className="px-4 py-3.5">Payment Method</th>
-                <th className="px-4 py-3.5 text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700/50">
-              {invoices.map((inv: any) => (
-                <tr key={inv.id} className="hover:bg-slate-700/20 transition">
-                  <td className="px-5 py-3.5 font-mono font-bold text-white text-xs">
-                    {inv.id}
-                  </td>
-                  <td className="px-4 py-3.5 text-slate-200 font-medium">
-                    {inv.planName}
-                  </td>
-                  <td className="px-4 py-3.5 font-bold text-emerald-400">
-                    ₹{Number(inv.amount).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3.5 text-slate-400">
-                    {new Date(inv.date).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </td>
-                  <td className="px-4 py-3.5 text-slate-400">
-                    {inv.paymentMethod}
-                  </td>
-                  <td className="px-4 py-3.5 text-right">
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 uppercase">
-                      {inv.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
             </tbody>
           </table>
         </div>

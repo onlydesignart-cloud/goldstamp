@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { api } from '../../../lib/api';
 import { exportToCsv } from '../../../lib/exportCsv';
+import { ADMIN_ROUTE_PREFIX } from '../../../config/adminRoute';
 import {
   BarChart2,
   TrendingUp,
@@ -137,10 +138,10 @@ export default function AdminAnalyticsPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportVisitsCsv}
-            className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition border border-slate-700 shadow-sm flex items-center gap-1.5 text-xs font-semibold"
+            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition border border-slate-700 shadow-sm flex items-center gap-1.5 text-xs font-semibold"
           >
             <Download className="w-3.5 h-3.5 text-emerald-400" />
-            Export Visits CSV
+            <span>Export Visits CSV</span>
           </button>
 
           {/* Time range pills */}
@@ -184,7 +185,7 @@ export default function AdminAnalyticsPage() {
       {/* 5 Core Telemetry KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         {/* Total Visits */}
-        <div className="bg-slate-800/80 border border-slate-700/80 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
+        <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-slate-400">Total Check-Ins</span>
@@ -196,14 +197,14 @@ export default function AdminAnalyticsPage() {
               {loading ? '...' : summary.totalVisits}
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[10px] text-slate-400">
+          <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400">
             <span>Avg / Customer</span>
             <span className="font-bold text-indigo-400">{summary.avgVisitsPerCustomer} visits</span>
           </div>
         </div>
 
         {/* Stamps Circulation */}
-        <div className="bg-slate-800/80 border border-slate-700/80 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
+        <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-slate-400">Stamps Issued</span>
@@ -215,14 +216,14 @@ export default function AdminAnalyticsPage() {
               {loading ? '...' : summary.totalStamps}
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[10px] text-slate-400">
+          <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400">
             <span>Stamping Velocity</span>
             <span className="font-bold text-teal-400">{summary.avgStampsPerVisit}x / check-in</span>
           </div>
         </div>
 
         {/* Voucher Redemption Rate */}
-        <div className="bg-slate-800/80 border border-emerald-500/30 p-4 rounded-2xl flex flex-col justify-between shadow-sm bg-gradient-to-br from-slate-800/80 to-emerald-950/20">
+        <div className="bg-slate-900/90 border border-emerald-500/30 p-4 rounded-2xl flex flex-col justify-between shadow-sm bg-gradient-to-br from-slate-900/90 to-emerald-950/20">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-emerald-300">Voucher Burn Rate</span>
@@ -234,14 +235,14 @@ export default function AdminAnalyticsPage() {
               {loading ? '...' : `${summary.redemptionRate}%`}
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[10px] text-slate-400">
+          <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400">
             <span>Redeemed / Unlocked</span>
             <span className="font-bold text-emerald-400">{summary.totalRedemptions} of {summary.totalRewards}</span>
           </div>
         </div>
 
         {/* Customer Repeat Rate */}
-        <div className="bg-slate-800/80 border border-purple-500/30 p-4 rounded-2xl flex flex-col justify-between shadow-sm bg-gradient-to-br from-slate-800/80 to-purple-950/20">
+        <div className="bg-slate-900/90 border border-purple-500/30 p-4 rounded-2xl flex flex-col justify-between shadow-sm bg-gradient-to-br from-slate-900/90 to-purple-950/20">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-purple-300">Repeat Patron Rate</span>
@@ -253,14 +254,14 @@ export default function AdminAnalyticsPage() {
               {loading ? '...' : `${summary.repeatRate}%`}
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[10px] text-slate-400">
+          <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400">
             <span>Cohort Retention</span>
             <span className="font-bold text-purple-400">2+ Visits</span>
           </div>
         </div>
 
         {/* Registered Patrons */}
-        <div className="bg-slate-800/80 border border-slate-700/80 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
+        <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-slate-400">Total Patrons</span>
@@ -272,7 +273,7 @@ export default function AdminAnalyticsPage() {
               {loading ? '...' : summary.totalCustomers}
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[10px] text-slate-400">
+          <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400">
             <span>Across Venues</span>
             <span className="font-bold text-blue-400">{summary.totalBusinesses} venues</span>
           </div>
@@ -280,7 +281,7 @@ export default function AdminAnalyticsPage() {
       </div>
 
       {/* Main Multi-Metric Ingestion Chart */}
-      <div className="bg-slate-800/80 border border-slate-700/80 p-6 rounded-3xl space-y-4 shadow-sm">
+      <div className="bg-slate-900/90 border border-slate-800 p-6 rounded-3xl space-y-4 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-base font-bold text-white flex items-center gap-2">
@@ -292,7 +293,7 @@ export default function AdminAnalyticsPage() {
             </p>
           </div>
 
-          <div className="flex items-center p-1 bg-slate-900/90 border border-slate-700 rounded-xl text-xs">
+          <div className="flex items-center p-1 bg-slate-950 border border-slate-800 rounded-xl text-xs">
             <button
               onClick={() => setChartView('visits_stamps')}
               className={`px-3 py-1.5 rounded-lg font-semibold transition ${
@@ -316,44 +317,68 @@ export default function AdminAnalyticsPage() {
           {mounted && monthlyVolume && monthlyVolume.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               {chartView === 'visits_stamps' ? (
+                /* BarChart with cursor={false} - Zero white background on hover! */
                 <BarChart data={monthlyVolume} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.6} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.4} />
                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <Tooltip
+                    cursor={false}
                     contentStyle={{
                       backgroundColor: '#0f172a',
                       borderRadius: '14px',
                       color: '#ffffff',
                       border: '1px solid #334155',
                       fontSize: '12px',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.6)',
                     }}
+                    itemStyle={{ color: '#e2e8f0', fontSize: '12px' }}
+                    labelStyle={{ color: '#c084fc', fontWeight: 700, marginBottom: '4px' }}
                   />
                   <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '12px', fontSize: '11px' }} />
                   <Bar dataKey="visits" name="Verified Check-Ins" fill="#6366f1" radius={[6, 6, 0, 0]} />
                   <Bar dataKey="stamps" name="Digital Stamps Stamped" fill="#14b8a6" radius={[6, 6, 0, 0]} />
                 </BarChart>
               ) : (
+                /* Perfect Voucher Burn Rate Chart with Issued vs Burned */
                 <AreaChart data={monthlyVolume} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="redemptionsGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.5} />
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.45} />
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                     </linearGradient>
+                    <linearGradient id="rewardsGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#a855f7" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#a855f7" stopOpacity={0.0} />
+                    </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.6} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.4} />
                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <Tooltip
+                    cursor={false}
                     contentStyle={{
                       backgroundColor: '#0f172a',
                       borderRadius: '14px',
                       color: '#ffffff',
                       border: '1px solid #334155',
                       fontSize: '12px',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.6)',
                     }}
+                    itemStyle={{ color: '#e2e8f0', fontSize: '12px' }}
+                    labelStyle={{ color: '#10b981', fontWeight: 700, marginBottom: '4px' }}
                   />
                   <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '12px', fontSize: '11px' }} />
+                  <Area
+                    type="monotone"
+                    dataKey="rewards"
+                    name="Vouchers Issued / Unlocked"
+                    stroke="#a855f7"
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                    fillOpacity={1}
+                    fill="url(#rewardsGrad)"
+                  />
                   <Area
                     type="monotone"
                     dataKey="redemptions"
@@ -377,7 +402,7 @@ export default function AdminAnalyticsPage() {
       {/* 2-Column: Industry Footfall Breakdown & Peak Hours Heatmap */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Industry Footfall Share */}
-        <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-6 space-y-4 shadow-sm">
+        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
@@ -392,7 +417,7 @@ export default function AdminAnalyticsPage() {
 
           <div className="space-y-3.5 pt-2">
             {industryStats.map((ind: any) => (
-              <div key={ind.id} className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-700/80 space-y-2">
+              <div key={ind.id} className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-white">{ind.name}</span>
@@ -424,7 +449,7 @@ export default function AdminAnalyticsPage() {
         </div>
 
         {/* Peak Hours & Day of Week Footfall Heatmap */}
-        <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-6 space-y-4 shadow-sm flex flex-col justify-between">
+        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl flex flex-col justify-between">
           <div>
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               <Clock className="w-4 h-4 text-amber-400" />
@@ -436,7 +461,7 @@ export default function AdminAnalyticsPage() {
 
             <div className="mt-4 space-y-3">
               {timeSlots.map((slot: any, idx: number) => (
-                <div key={idx} className="p-3 rounded-2xl bg-slate-900/70 border border-slate-700/70 space-y-1.5">
+                <div key={idx} className="p-3 rounded-2xl bg-slate-950/70 border border-slate-800/80 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-white">{slot.slot}</span>
                     <span className="text-xs font-black text-amber-400">{slot.share}% Traffic</span>
@@ -457,11 +482,11 @@ export default function AdminAnalyticsPage() {
           </div>
 
           {/* Weekday quick pills */}
-          <div className="pt-3 border-t border-slate-700/60">
+          <div className="pt-3 border-t border-slate-800">
             <span className="text-[11px] font-bold text-slate-400 block mb-2">Weekday Ingestion Volume:</span>
             <div className="grid grid-cols-7 gap-1.5 text-center">
               {weekdays.map((w: any) => (
-                <div key={w.day} className="p-1.5 rounded-xl bg-slate-900 border border-slate-700/70">
+                <div key={w.day} className="p-1.5 rounded-xl bg-slate-950 border border-slate-800">
                   <span className="text-[10px] text-slate-400 block font-bold">{w.day}</span>
                   <span className={`text-xs font-black block mt-0.5 ${w.visits >= 5 ? 'text-emerald-400' : 'text-slate-200'}`}>
                     {w.visits}
@@ -474,7 +499,7 @@ export default function AdminAnalyticsPage() {
       </div>
 
       {/* Loyalty Conversion Funnel */}
-      <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-6 space-y-4 shadow-sm">
+      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
         <div>
           <h2 className="text-base font-bold text-white flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-emerald-400" />
@@ -489,7 +514,7 @@ export default function AdminAnalyticsPage() {
           {funnel.map((step: any, idx: number) => (
             <div
               key={idx}
-              className="p-4 rounded-2xl bg-slate-900/80 border border-slate-700/80 relative overflow-hidden flex flex-col justify-between"
+              className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 relative overflow-hidden flex flex-col justify-between"
             >
               <div>
                 <span className="text-[10px] font-black text-slate-500 uppercase">
@@ -517,7 +542,7 @@ export default function AdminAnalyticsPage() {
       </div>
 
       {/* Top Loyal Patrons Leaderboard across Platform */}
-      <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl overflow-hidden shadow-lg p-6 space-y-4">
+      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl overflow-hidden shadow-xl p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-base font-bold text-white flex items-center gap-2">
@@ -529,16 +554,16 @@ export default function AdminAnalyticsPage() {
             </p>
           </div>
           <Link
-            href="/admin/users"
+            href={`${ADMIN_ROUTE_PREFIX}/users`}
             className="text-xs text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1"
           >
             All Users <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-slate-700/60">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900/90 text-slate-400 uppercase font-semibold border-b border-slate-700">
+        <div className="overflow-x-auto rounded-2xl border border-slate-800">
+          <table className="w-full min-w-[700px] text-left text-xs">
+            <thead className="bg-slate-950 text-slate-400 uppercase font-semibold text-[10px] border-b border-slate-800">
               <tr>
                 <th className="px-5 py-3.5">Patron</th>
                 <th className="px-4 py-3.5">Phone / Contact</th>
@@ -548,9 +573,9 @@ export default function AdminAnalyticsPage() {
                 <th className="px-4 py-3.5 text-right">Favorite Home Turf</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700/50">
+            <tbody className="divide-y divide-slate-800 font-sans">
               {topLoyalCustomers.map((c, i) => (
-                <tr key={c.id || i} className="hover:bg-slate-700/20 transition">
+                <tr key={c.id || i} className="hover:bg-slate-800/40 transition">
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2.5">
                       <div className="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center font-bold text-[10px]">
@@ -575,7 +600,7 @@ export default function AdminAnalyticsPage() {
                     {c.redemptionsCount} redeemed
                   </td>
                   <td className="px-4 py-3.5 text-right">
-                    <span className="inline-block px-2.5 py-1 rounded-xl bg-slate-700/60 border border-slate-600/60 text-slate-200 text-[11px] font-semibold">
+                    <span className="inline-block px-2.5 py-1 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-[11px] font-semibold">
                       {c.favoriteVenue}
                     </span>
                   </td>

@@ -685,7 +685,7 @@ export default function HomePage() {
                 <li className="text-slate-400">REST API v1 (/api/v1)</li>
                 <li className="text-slate-400">HMAC-SHA256 Token Auth</li>
                 <li className="text-slate-400">PostgreSQL ACID Isolation</li>
-                <li><Link href="/admin/dashboard" className="text-slate-400 hover:text-white transition">SaaS Owner Console</Link></li>
+                <li className="text-slate-400">Zero-Trust Audit Trails</li>
               </ul>
             </div>
           </div>

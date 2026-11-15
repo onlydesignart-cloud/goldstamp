@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { api } from '../../../lib/api';
+import { ADMIN_ROUTE_PREFIX } from '../../../config/adminRoute';
 import {
   Building2,
   Users,
@@ -126,21 +127,21 @@ export default function AdminDashboardPage() {
       val: summary.totalBusinesses,
       sub: `${summary.activeBusinesses} active · ${summary.pendingBusinesses} pending`,
       icon: Building2,
-      link: '/admin/businesses',
+      link: `${ADMIN_ROUTE_PREFIX}/businesses`,
     },
     {
       label: 'Active Venues',
       val: summary.activeBusinesses,
       sub: `${summary.totalBusinesses > 0 ? Math.round((summary.activeBusinesses / summary.totalBusinesses) * 100) : 100}% operational`,
       icon: CheckCircle2,
-      link: '/admin/businesses?status=ACTIVE',
+      link: `${ADMIN_ROUTE_PREFIX}/businesses?status=ACTIVE`,
     },
     {
       label: 'Pending Approval',
       val: summary.pendingBusinesses,
       sub: summary.pendingBusinesses > 0 ? 'Review required' : 'All approved',
       icon: Clock,
-      link: '/admin/businesses?status=PENDING',
+      link: `${ADMIN_ROUTE_PREFIX}/businesses?status=PENDING`,
       urgent: summary.pendingBusinesses > 0,
     },
     {
@@ -148,49 +149,49 @@ export default function AdminDashboardPage() {
       val: summary.totalCustomers,
       sub: 'Registered accounts',
       icon: Users,
-      link: '/admin/users',
+      link: `${ADMIN_ROUTE_PREFIX}/users`,
     },
     {
       label: 'Platform Visits',
       val: summary.totalVisits,
       sub: 'Verified check-ins',
       icon: Footprints,
-      link: '/admin/analytics',
+      link: `${ADMIN_ROUTE_PREFIX}/analytics`,
     },
     {
       label: 'Stamps Issued',
       val: summary.totalStamps,
       sub: 'Active balance',
       icon: Stamp,
-      link: '/admin/analytics',
+      link: `${ADMIN_ROUTE_PREFIX}/analytics`,
     },
     {
       label: 'Reward Incentives',
       val: summary.totalRewards,
       sub: 'Across campaigns',
       icon: Gift,
-      link: '/admin/analytics',
+      link: `${ADMIN_ROUTE_PREFIX}/analytics`,
     },
     {
       label: 'Vouchers Redeemed',
       val: summary.totalRedemptions,
       sub: 'Burned rewards',
       icon: Sparkles,
-      link: '/admin/analytics',
+      link: `${ADMIN_ROUTE_PREFIX}/analytics`,
     },
     {
       label: 'Monthly Recurring (MRR)',
       val: `₹${Number(summary.mrr || 0).toLocaleString()}`,
       sub: `ARR: ₹${Number(summary.arr || (summary.mrr * 12) || 0).toLocaleString()}`,
       icon: DollarSign,
-      link: '/admin/subscriptions',
+      link: `${ADMIN_ROUTE_PREFIX}/subscriptions`,
     },
     {
       label: 'Active Subscriptions',
       val: summary.activeSubscriptions,
       sub: 'Paid tenant tiers',
       icon: CreditCard,
-      link: '/admin/subscriptions',
+      link: `${ADMIN_ROUTE_PREFIX}/subscriptions`,
     },
   ];
 
@@ -223,14 +224,14 @@ export default function AdminDashboardPage() {
             <span className="hidden sm:inline">Refresh</span>
           </button>
           <Link
-            href="/admin/businesses"
+            href={`${ADMIN_ROUTE_PREFIX}/businesses`}
             className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-1.5"
           >
             <Building2 className="w-3.5 h-3.5" />
             Manage Businesses
           </Link>
           <Link
-            href="/admin/subscriptions"
+            href={`${ADMIN_ROUTE_PREFIX}/subscriptions`}
             className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs px-4 py-2.5 rounded-xl transition border border-slate-700 flex items-center gap-1.5"
           >
             <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
@@ -277,7 +278,7 @@ export default function AdminDashboardPage() {
             </div>
 
             <Link
-              href="/admin/businesses?status=PENDING"
+              href={`${ADMIN_ROUTE_PREFIX}/businesses?status=PENDING`}
               className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-300 hover:text-white bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 px-3.5 py-2 rounded-xl transition shrink-0"
             >
               Review in Directory <ArrowRight className="w-3.5 h-3.5" />
@@ -379,7 +380,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Dynamic Growth Chart with Switchable Views */}
-      <div className="bg-slate-800/80 border border-slate-700/80 p-6 rounded-3xl space-y-5 shadow-sm">
+      <div className="bg-slate-900/90 border border-slate-800 p-6 rounded-3xl space-y-5 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
@@ -397,7 +398,7 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* Metric Selector Pills */}
-          <div className="flex items-center p-1 bg-slate-900/90 border border-slate-700 rounded-2xl">
+          <div className="flex items-center p-1 bg-slate-950 border border-slate-800 rounded-2xl">
             <button
               onClick={() => setActiveMetric('audience')}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
@@ -431,7 +432,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Chart View */}
+        {/* Chart View with cursor={false} to prevent white background on hover */}
         <div className="h-80 w-full pt-2">
           {mounted && growthData && growthData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
@@ -454,18 +455,12 @@ export default function AdminDashboardPage() {
                     <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.0} />
                   </linearGradient>
                   <linearGradient id="emeraldGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.45} />
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.5} />
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.6} />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
-                  axisLine={{ stroke: '#334155' }}
-                  tickLine={false}
-                />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.4} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <YAxis
                   tick={{ fontSize: 11, fill: '#94a3b8' }}
                   axisLine={{ stroke: '#334155' }}
@@ -473,13 +468,14 @@ export default function AdminDashboardPage() {
                   tickFormatter={(val) => (activeMetric === 'revenue' ? `₹${val}` : `${val}`)}
                 />
                 <Tooltip
+                  cursor={false}
                   contentStyle={{
                     backgroundColor: '#0f172a',
                     borderRadius: '14px',
                     color: '#ffffff',
                     border: '1px solid #334155',
                     fontSize: '12px',
-                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.6)',
                   }}
                   formatter={(value: any, name: any) => [
                     activeMetric === 'revenue' ? `₹${Number(value).toLocaleString()}` : value,
@@ -562,7 +558,7 @@ export default function AdminDashboardPage() {
       {/* Two Column Layout: Top Performing Venues + Live Activity Stream */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Top Venues Leaderboard (2 cols) */}
-        <div className="lg:col-span-2 bg-slate-800/80 border border-slate-700/80 rounded-3xl p-6 space-y-4 shadow-sm">
+        <div className="lg:col-span-2 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
@@ -574,21 +570,21 @@ export default function AdminDashboardPage() {
               </p>
             </div>
             <Link
-              href="/admin/businesses"
+              href={`${ADMIN_ROUTE_PREFIX}/businesses`}
               className="text-xs text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1"
             >
               View All ({summary.totalBusinesses}) <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
-          <div className="divide-y divide-slate-700/60">
+          <div className="divide-y divide-slate-800">
             {topVenues.map((venue: any, idx: number) => (
               <div
                 key={venue.id || idx}
-                className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group hover:bg-slate-700/20 px-2 rounded-xl transition"
+                className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group hover:bg-slate-800/40 px-2 rounded-xl transition"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-xl bg-slate-700/60 border border-slate-600/60 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
+                  <div className="w-7 h-7 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
                     #{idx + 1}
                   </div>
                   <div>
@@ -622,7 +618,7 @@ export default function AdminDashboardPage() {
                     <p className="text-xs font-bold text-white">{venue.totalVisits} visits</p>
                     <p className="text-[10px] text-slate-400">{venue.totalCustomers} patrons</p>
                   </div>
-                  <div className="p-2 rounded-xl bg-slate-700/40 text-teal-400 border border-slate-700">
+                  <div className="p-2 rounded-xl bg-slate-800 text-teal-400 border border-slate-700">
                     <Stamp className="w-3.5 h-3.5" />
                   </div>
                 </div>
@@ -632,7 +628,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Platform Live Stream (1 col) */}
-        <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-6 space-y-4 shadow-sm flex flex-col justify-between">
+        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -649,7 +645,7 @@ export default function AdminDashboardPage() {
               {recentActivities.map((act: any) => (
                 <div
                   key={act.id}
-                  className="p-3 rounded-2xl bg-slate-900/70 border border-slate-700/60 text-xs space-y-1"
+                  className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 text-xs space-y-1"
                 >
                   <div className="flex items-center justify-between">
                     <span
@@ -676,9 +672,9 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-700/60 text-center">
+          <div className="mt-4 pt-3 border-t border-slate-800 text-center">
             <Link
-              href="/admin/analytics"
+              href={`${ADMIN_ROUTE_PREFIX}/analytics`}
               className="text-xs font-semibold text-slate-400 hover:text-white transition inline-flex items-center gap-1"
             >
               Full Platform Telemetry <ArrowRight className="w-3 h-3" />

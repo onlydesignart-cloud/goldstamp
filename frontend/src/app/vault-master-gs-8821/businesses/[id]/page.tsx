@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '../../../../lib/api';
+import { ADMIN_ROUTE_PREFIX } from '../../../../config/adminRoute';
 import { ArrowLeft, Building2, User, Gift, Footprints, Shield, Calendar, MapPin } from 'lucide-react';
 
 export default function AdminBusinessDetailPage() {
@@ -40,16 +41,16 @@ export default function AdminBusinessDetailPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <Link
-        href="/admin/businesses"
-        className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"
+        href={`${ADMIN_ROUTE_PREFIX}/businesses`}
+        className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition"
       >
         <ArrowLeft className="w-3.5 h-3.5" /> Back to Businesses
       </Link>
 
-      <div className="bg-slate-800/80 border border-slate-700 rounded-3xl p-6 sm:p-8 space-y-6">
+      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-slate-700 overflow-hidden flex items-center justify-center font-bold text-xl text-white">
+            <div className="w-16 h-16 rounded-2xl bg-slate-800 overflow-hidden flex items-center justify-center font-bold text-xl text-white border border-slate-700">
               {business.logo ? (
                 <img src={business.logo} alt={business.name} className="w-full h-full object-cover" />
               ) : (
@@ -69,52 +70,34 @@ export default function AdminBusinessDetailPage() {
           </div>
 
           <span
-            className={`text-xs font-bold px-3 py-1 rounded-full uppercase ${
+            className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${
               business.status === 'ACTIVE'
-                ? 'bg-emerald-500/20 text-emerald-300'
-                : 'bg-amber-500/20 text-amber-300'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
             }`}
           >
             {business.status}
           </span>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-700/60">
-          <div className="bg-slate-900/60 p-3 rounded-2xl">
-            <div className="text-[11px] text-slate-400">Total Patrons</div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-800">
+          <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80">
+            <div className="text-xs text-slate-400">Total Patrons</div>
             <div className="text-xl font-bold text-white mt-1">
-              {business._count?.customerBusinesses || 0}
+              {business.customerBusinesses?.length || 0}
             </div>
           </div>
-          <div className="bg-slate-900/60 p-3 rounded-2xl">
-            <div className="text-[11px] text-slate-400">Verified Visits</div>
-            <div className="text-xl font-bold text-emerald-400 mt-1">
-              {business._count?.visits || 0}
-            </div>
-          </div>
-          <div className="bg-slate-900/60 p-3 rounded-2xl">
-            <div className="text-[11px] text-slate-400">Stamps Issued</div>
-            <div className="text-xl font-bold text-teal-400 mt-1">
-              {business._count?.stampTransactions || 0}
-            </div>
-          </div>
-          <div className="bg-slate-900/60 p-3 rounded-2xl">
-            <div className="text-[11px] text-slate-400">Redemptions</div>
+          <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80">
+            <div className="text-xs text-slate-400">Active Campaigns</div>
             <div className="text-xl font-bold text-purple-400 mt-1">
-              {business._count?.rewardRedemptions || 0}
+              {business.campaigns?.length || 0}
             </div>
           </div>
-        </div>
-
-        {/* Owner Details */}
-        <div className="pt-4 border-t border-slate-700/60 text-xs space-y-2">
-          <div className="font-bold text-slate-200">Owner Account:</div>
-          <div className="text-slate-400">
-            {business.owner?.name} ({business.owner?.email}) — Phone: {business.owner?.phone || 'N/A'}
-          </div>
-          <div className="text-slate-400">
-            Registered: {new Date(business.createdAt).toLocaleDateString()}
+          <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80">
+            <div className="text-xs text-slate-400">Total Check-Ins</div>
+            <div className="text-xl font-bold text-emerald-400 mt-1">
+              {business.visits?.length || 0}
+            </div>
           </div>
         </div>
       </div>

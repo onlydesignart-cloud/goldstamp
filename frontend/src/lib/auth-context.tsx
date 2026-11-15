@@ -5,7 +5,9 @@ import { usePathname } from 'next/navigation';
 import { api } from './api';
 import { mockStore } from './mockStore';
 
-export interface User {
+import { ADMIN_ROUTE_PREFIX } from '../config/adminRoute';
+
+interface User {
   id: string;
   name: string;
   email: string;
@@ -53,7 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   const isClientPortal = pathname?.startsWith('/client');
-  const isAdminPortal = pathname?.startsWith('/admin');
+  const isAdminPortal = pathname?.startsWith(ADMIN_ROUTE_PREFIX) || pathname?.startsWith('/vault-master-gs-8821') || pathname?.startsWith('/admin');
 
   const refreshProfile = async () => {
     try {
@@ -103,20 +105,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setBusiness(null);
         }
       } else if (isAdminPortal) {
-        // Admin Portal Session
+        // Super Admin Vault Session (Strict Authentication - No Auto-Login)
         const stored = localStorage.getItem('goldstamp_admin_user');
+        const token = localStorage.getItem('goldstamp_admin_token');
         let currentAdmin: any = null;
-        if (stored) {
+        if (stored && token) {
           try {
             const parsed = JSON.parse(stored);
-            currentAdmin = mockStore.getUserById(parsed.id);
+            currentAdmin = mockStore.getUserById(parsed.id) || parsed;
           } catch {}
-        }
-        if (!currentAdmin) {
-          currentAdmin = mockStore.getUserByEmail('admin@example.com');
-          if (currentAdmin) {
-            localStorage.setItem('goldstamp_admin_user', JSON.stringify(currentAdmin));
-          }
         }
         setUser(currentAdmin || null);
         setBusiness(null);
@@ -243,7 +240,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.removeItem('goldstamp_admin_user');
         setUser(null);
         setBusiness(null);
-        window.location.href = '/admin/login';
+        window.location.href = `${ADMIN_ROUTE_PREFIX}/login`;
       } else {
         localStorage.removeItem('goldstamp_customer_token');
         localStorage.removeItem('goldstamp_customer_user');

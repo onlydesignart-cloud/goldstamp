@@ -39,6 +39,7 @@ export interface MockStoreState {
   plans: any[];
   subscriptions: any[];
   invoices: any[];
+  auditLogs: any[];
   settings?: PlatformSettings;
 }
 
@@ -462,6 +463,8 @@ const INITIAL_DATA: MockStoreState = {
     },
   ],
 
+  auditLogs: [],
+
   settings: {
     autoApproveBusinesses: false,
     requireCustomerPhoneOtp: true,
@@ -497,7 +500,9 @@ class MockDataStore {
       return INITIAL_DATA;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (!parsed.auditLogs) parsed.auditLogs = [];
+      return parsed;
     } catch {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DATA));
       return INITIAL_DATA;
@@ -675,7 +680,20 @@ class MockDataStore {
     }
 
     if (qrRecord.isUsed) {
-      throw new Error('FRAUD_PREVENTED: This QR code has already been scanned and consumed. Once scanned, tokens cannot be reused by anyone.');
+      if (!db.auditLogs) db.auditLogs = [];
+      db.auditLogs.unshift({
+        id: `audit_fraud_${Date.now()}`,
+        action: 'SCREENSHOT_REPLAY_ATTEMPT_BLOCKED',
+        actor: { name: user.name || 'Patron' },
+        actorRole: 'CUSTOMER',
+        entityId: qrRecord.id,
+        entityType: 'ANTI_FRAUD_SCAN',
+        status: 'BLOCKED',
+        metadata: { token: qrRecord.token?.substring(0, 16) + '...', reason: 'Single-use token reuse attempt (photo/screenshot replay blocked)' },
+        createdAt: new Date().toISOString(),
+      });
+      this.saveDb(db);
+      throw new Error('FRAUD_PREVENTED: This QR code has already been scanned and consumed. Once scanned, tokens are instantly burned and screenshots cannot be reused.');
     }
 
     if (new Date(qrRecord.expiresAt).getTime() < Date.now()) {
@@ -702,6 +720,19 @@ class MockDataStore {
     qrRecord.isUsed = true;
     (qrRecord as any).usedAt = new Date().toISOString();
     (qrRecord as any).usedBy = activeUserId;
+
+    if (!db.auditLogs) db.auditLogs = [];
+    db.auditLogs.unshift({
+      id: `audit_burn_${Date.now()}`,
+      action: 'SINGLE_USE_TOKEN_BURNED_INSTANTLY',
+      actor: { name: user.name || 'Patron' },
+      actorRole: 'CUSTOMER',
+      entityId: qrRecord.id,
+      entityType: 'ANTI_FRAUD_VERIFICATION',
+      status: 'VERIFIED',
+      metadata: { token: qrRecord.token?.substring(0, 16) + '...', venue: business.name },
+      createdAt: new Date().toISOString(),
+    });
 
     // 4. Find active campaign
     const campaign = db.campaigns.find((c) => c.businessId === businessId && c.status === 'ACTIVE') || db.campaigns[0];

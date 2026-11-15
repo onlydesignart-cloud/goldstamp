@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '../lib/auth-context';
+import { ADMIN_ROUTE_PREFIX } from '../config/adminRoute';
 import {
   Shield,
   Activity,
@@ -17,20 +18,24 @@ import {
 export const AdminNavbar: React.FC = () => {
   const { user, logout } = useAuth();
 
+  const handleAdminLogout = () => {
+    logout();
+  };
+
   return (
     <header className="bg-slate-950 border-b border-slate-800 text-white sticky top-0 z-40 transition-colors shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           {/* Brand & Platform Badge */}
           <div className="flex items-center gap-4 sm:gap-6">
-            <Link href="/admin/dashboard" className="flex items-center gap-3 group py-1">
+            <Link href={`${ADMIN_ROUTE_PREFIX}/dashboard`} className="flex items-center gap-3 group py-1">
               <img
                 src="/images/logo-dark.png"
                 alt="GoldStamp"
                 className="h-8 w-auto object-contain hover:opacity-95 transition-opacity"
               />
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase tracking-wider hidden sm:inline-block">
-                Super Admin
+              <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase tracking-wider hidden sm:inline-block">
+                Super Admin Vault
               </span>
             </Link>
 
@@ -75,11 +80,12 @@ export const AdminNavbar: React.FC = () => {
               </div>
 
               <button
-                onClick={logout}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition"
-                title="Sign Out of Master Console"
+                onClick={handleAdminLogout}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/25 transition text-xs font-semibold"
+                title="Sign Out of Super Admin Vault"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden sm:inline">Sign Out</span>
               </button>
             </div>
           </div>
