@@ -1,7 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { AuthProvider } from '../lib/auth-context';
-import { DemoRoleSwitcher } from '../components/DemoRoleSwitcher';
 import { Navbar } from '../components/Navbar';
 import { CustomerBottomNav } from '../components/CustomerBottomNav';
 import PlatformBroadcastBanner from '../components/PlatformBroadcastBanner';
@@ -23,7 +22,6 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col bg-slate-50 text-slate-900 pb-16 md:pb-0">
         <AuthProvider>
           <PlatformBroadcastBanner />
-          <DemoRoleSwitcher />
           <Navbar />
           <main className="flex-1">{children}</main>
           <CustomerBottomNav />

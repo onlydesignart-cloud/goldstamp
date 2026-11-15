@@ -1,13 +1,31 @@
 'use client';
 
-import React from 'react';
-import { usePathname } from 'next/navigation';
+import React, { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { ClientNavbar } from '../../components/ClientNavbar';
 import { ClientSidebar } from '../../components/ClientSidebar';
+import { useAuth } from '../../lib/auth-context';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isAuthPage = pathname?.startsWith('/client/login') || pathname?.startsWith('/client/register');
+  const router = useRouter();
+  const { user, loading } = useAuth();
+
+  const isAuthPage =
+    pathname?.startsWith('/client/login') ||
+    pathname?.startsWith('/client/register') ||
+    pathname?.startsWith('/client/verify-email');
+
+  useEffect(() => {
+    if (!loading && !isAuthPage) {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('goldstamp_merchant_token') : null;
+      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('goldstamp_merchant_user') : null;
+
+      if (!storedToken || !storedUser) {
+        router.replace('/client/login');
+      }
+    }
+  }, [loading, isAuthPage, router]);
 
   if (isAuthPage) {
     return <div className="min-h-screen bg-slate-950 text-slate-100">{children}</div>;

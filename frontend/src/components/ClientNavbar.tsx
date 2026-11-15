@@ -13,14 +13,17 @@ import {
   User,
   PlusCircle,
   Megaphone,
-  Zap,
 } from 'lucide-react';
 
 export const ClientNavbar: React.FC = () => {
   const pathname = usePathname();
   const { user, business, logout } = useAuth();
 
-  const isAuthPage = pathname?.startsWith('/client/login') || pathname?.startsWith('/client/register');
+  const isAuthPage =
+    pathname?.startsWith('/client/login') ||
+    pathname?.startsWith('/client/register') ||
+    pathname?.startsWith('/client/verify-email');
+
   if (isAuthPage) return null;
 
   return (
@@ -77,30 +80,6 @@ export const ClientNavbar: React.FC = () => {
 
             {/* Merchant Identity & Signout */}
             <div className="flex items-center gap-3 pl-3 sm:pl-4 border-l border-slate-800">
-              {user?.role === 'BUSINESS_STAFF' && (
-                <button
-                  onClick={() => {
-                    if (typeof window !== 'undefined') {
-                      const ownerUser = {
-                        id: 'usr_owner_smash',
-                        name: 'Rohan Mehta',
-                        email: 'owner@smashzone.com',
-                        role: 'BUSINESS_OWNER',
-                        status: 'ACTIVE',
-                      };
-                      localStorage.setItem('goldstamp_merchant_token', `mock_jwt_owner_${Date.now()}`);
-                      localStorage.setItem('goldstamp_merchant_user', JSON.stringify(ownerUser));
-                      window.location.href = '/client/dashboard';
-                    }
-                  }}
-                  className="px-2.5 py-1 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[11px] font-medium transition inline-flex items-center gap-1"
-                  title="Restore Business Owner privileges"
-                >
-                  <Zap className="w-3 h-3 text-amber-400" />
-                  <span>Switch to Owner</span>
-                </button>
-              )}
-
               <div className="text-right hidden sm:block">
                 <div className="text-xs font-semibold text-white">
                   {user ? user.name : 'Merchant Admin'}

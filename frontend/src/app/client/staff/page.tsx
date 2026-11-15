@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 export default function ClientStaffPage() {
-  const { business, user, switchDemoRole } = useAuth();
+  const { business, user } = useAuth();
   const router = useRouter();
 
   const [staff, setStaff] = useState<any[]>([]);

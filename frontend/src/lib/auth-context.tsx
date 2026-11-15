@@ -64,13 +64,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
+      // One-time purge of legacy development/test credentials from localStorage
+      if (!localStorage.getItem('goldstamp_production_cleaned_v1')) {
+        localStorage.removeItem('goldstamp_merchant_user');
+        localStorage.removeItem('goldstamp_merchant_token');
+        localStorage.removeItem('goldstamp_merchant_business');
+        localStorage.removeItem('goldstamp_impersonation_biz_id');
+        localStorage.removeItem('goldstamp_customer_user');
+        localStorage.removeItem('goldstamp_customer_token');
+        localStorage.removeItem('goldstamp_user');
+        localStorage.removeItem('goldstamp_token');
+        localStorage.removeItem('goldstamp_local_test_db_v1');
+        localStorage.setItem('goldstamp_production_cleaned_v1', 'true');
+      }
+
       if (isClientPortal) {
-        // Merchant Portal Session
+        // Merchant Portal Session (Strict Authentication - No Auto-Login)
         const impBizId = localStorage.getItem('goldstamp_impersonation_biz_id');
         if (impBizId) {
           const impBiz = mockStore.getRaw().businesses.find((b: any) => b.id === impBizId);
           if (impBiz) {
-            const owner = mockStore.getUserById(impBiz.ownerId) || mockStore.getUserByEmail('owner@smashzone.com');
+            const owner = mockStore.getUserById(impBiz.ownerId);
             setUser(owner || null);
             setBusiness(impBiz);
             setIsImpersonating(true);
@@ -81,24 +95,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsImpersonating(false);
 
         const stored = localStorage.getItem('goldstamp_merchant_user');
+        const token = localStorage.getItem('goldstamp_merchant_token');
         let currentMerchant: any = null;
-        if (stored) {
+        if (stored && token) {
           try {
             const parsed = JSON.parse(stored);
             currentMerchant = mockStore.getUserById(parsed.id) || mockStore.getUserByEmail(parsed.email);
           } catch {}
         }
-        // If not logged in yet or no merchant session, default to SmashZone owner for seamless testing
-        if (!currentMerchant) {
-          currentMerchant = mockStore.getUserByEmail('owner@smashzone.com');
-          if (currentMerchant) {
-            localStorage.setItem('goldstamp_merchant_user', JSON.stringify(currentMerchant));
-          }
-        }
 
         if (currentMerchant) {
           setUser(currentMerchant);
-          const biz = mockStore.getBusinessByOwnerId(currentMerchant.id) || mockStore.getRaw().businesses[0];
+          const biz = mockStore.getBusinessByOwnerId(currentMerchant.id);
           setBusiness(biz || null);
         } else {
           setUser(null);
@@ -120,13 +128,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         // Customer / Public Session
         const stored = localStorage.getItem('goldstamp_customer_user') || localStorage.getItem('goldstamp_user');
-        if (stored) {
+        const token = localStorage.getItem('goldstamp_customer_token') || localStorage.getItem('goldstamp_token');
+        if (stored && token) {
           try {
             const parsed = JSON.parse(stored);
             const foundUser = mockStore.getUserById(parsed.id) || mockStore.getUserByEmail(parsed.email);
-            if (foundUser && foundUser.role === 'CUSTOMER') {
-              setUser(foundUser);
-            } else if (foundUser) {
+            if (foundUser) {
               setUser(foundUser);
             } else {
               setUser(null);
@@ -205,6 +212,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     const res = await api.register(data);
     if (res.success && res.data) {
+      if (res.data.pending) {
+        // Merchant pending email confirmation: do NOT set user or business into session
+        setLoading(false);
+        return {
+          success: true,
+          pending: true,
+          email: res.data.email,
+          verificationToken: res.data.verificationToken,
+          businessName: res.data.businessName,
+          message: res.data.message,
+        };
+      }
       setUser(res.data.user);
       setBusiness(res.data.business || null);
       setLoading(false);

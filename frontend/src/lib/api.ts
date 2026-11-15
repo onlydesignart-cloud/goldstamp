@@ -44,39 +44,47 @@ const asyncWrap = async <T>(fn: () => T | Promise<T>, message: string = 'Success
 };
 
 const getActiveUserId = (): string => {
-  if (typeof window === 'undefined') return 'usr_customer_alex';
+  if (typeof window === 'undefined') return '';
   const path = window.location.pathname;
   if (path.startsWith('/client')) {
     const merchantUser = localStorage.getItem('goldstamp_merchant_user');
     const parsed = safeJsonParse<any>(merchantUser, null);
-    return parsed?.id || 'usr_owner_smash';
+    return parsed?.id || '';
   }
-  if (path.startsWith('/admin')) {
+  if (path.startsWith('/admin') || path.startsWith('/vault-master-gs-8821')) {
     const adminUser = localStorage.getItem('goldstamp_admin_user');
     const parsed = safeJsonParse<any>(adminUser, null);
-    return parsed?.id || 'usr_admin';
+    return parsed?.id || '';
   }
   const customerUser = localStorage.getItem('goldstamp_customer_user') || localStorage.getItem('goldstamp_user');
   const parsed = safeJsonParse<any>(customerUser, null);
-  return parsed?.id || 'usr_customer_alex';
+  return parsed?.id || '';
 };
 
 export const api = {
   // --- Auth ---
   login: async (credentials: any): Promise<ApiResponse<any>> => {
     return asyncWrap(() => {
-      const user = mockStore.getUserByEmail(credentials.email);
+      const email = sanitizeEmail(credentials.email);
+
+      // Check if this merchant email is still awaiting confirmation
+      const pending = mockStore.getPendingVerificationByEmail(email);
+      if (pending) {
+        throw new Error('EMAIL_NOT_VERIFIED: Your account is pending email confirmation. Please click the verification link sent to your email to activate your account.');
+      }
+
+      const user = mockStore.getUserByEmail(email);
       if (!user) throw new Error('Account with this email does not exist');
       
       const token = `mock_jwt_${user.id}_${Date.now()}`;
       const business = (user.role === 'BUSINESS_OWNER' || user.role === 'BUSINESS_STAFF')
-        ? mockStore.getBusinessByOwnerId(user.id) || mockStore.getRaw().businesses[0]
+        ? mockStore.getBusinessByOwnerId(user.id)
         : null;
 
       if (typeof window !== 'undefined') {
         const path = window.location.pathname;
         const isClient = path.startsWith('/client') || user.role === 'BUSINESS_OWNER' || user.role === 'BUSINESS_STAFF';
-        const isAdmin = path.startsWith('/admin') || user.role === 'SUPER_ADMIN';
+        const isAdmin = path.startsWith('/admin') || path.startsWith('/vault-master-gs-8821') || user.role === 'SUPER_ADMIN';
 
         if (isClient) {
           localStorage.setItem('goldstamp_merchant_token', token);
@@ -175,34 +183,70 @@ export const api = {
 
   register: async (data: any): Promise<ApiResponse<any>> => {
     return asyncWrap(() => {
+      const isMerchant = data.role === 'BUSINESS_OWNER' || !!data.businessName;
+      if (isMerchant) {
+        // Strict Merchant Email Confirmation: Do NOT save credentials to active DB or localStorage
+        const pending = mockStore.createPendingMerchantRegistration({
+          businessName: data.businessName,
+          ownerName: data.name || data.ownerName,
+          email: data.email,
+          phone: data.phone,
+          industry: data.industry,
+          city: data.city,
+          password: data.password,
+        });
+
+        return {
+          pending: true,
+          email: pending.email,
+          verificationToken: pending.verificationToken,
+          businessName: pending.businessName,
+          message: 'Verification link dispatched to your email address.',
+        };
+      }
+
       const existing = mockStore.getUserByEmail(data.email);
       if (existing) throw new Error('Email is already registered');
 
       const user = mockStore.createUser(data);
       const token = `mock_jwt_${user.id}_${Date.now()}`;
-      const business = user.role === 'BUSINESS_OWNER' ? mockStore.getBusinessByOwnerId(user.id) : null;
 
       if (typeof window !== 'undefined') {
-        const path = window.location.pathname;
-        const isClient = path.startsWith('/client') || user.role === 'BUSINESS_OWNER';
-        if (isClient) {
-          localStorage.setItem('goldstamp_merchant_token', token);
-          localStorage.setItem('goldstamp_merchant_user', JSON.stringify(user));
-          if (business) localStorage.setItem('goldstamp_merchant_business', JSON.stringify(business));
-        } else {
-          localStorage.setItem('goldstamp_customer_token', token);
-          localStorage.setItem('goldstamp_customer_user', JSON.stringify(user));
-          localStorage.setItem('goldstamp_user', JSON.stringify(user));
-        }
+        localStorage.setItem('goldstamp_customer_token', token);
+        localStorage.setItem('goldstamp_customer_user', JSON.stringify(user));
+        localStorage.setItem('goldstamp_user', JSON.stringify(user));
         localStorage.setItem('goldstamp_token', token);
       }
 
       return {
         user,
-        business,
         accessToken: token,
       };
-    }, 'Registration successful');
+    }, 'Registration submitted');
+  },
+
+  verifyMerchantEmail: async (token: string): Promise<ApiResponse<any>> => {
+    return asyncWrap(() => {
+      return mockStore.verifyMerchantEmail(token);
+    }, 'Email confirmed and account activated');
+  },
+
+  resendMerchantVerification: async (email: string): Promise<ApiResponse<any>> => {
+    return asyncWrap(() => {
+      return mockStore.resendMerchantVerificationEmail(email);
+    }, 'Verification email resent');
+  },
+
+  requestPasswordReset: async (email: string): Promise<ApiResponse<any>> => {
+    return asyncWrap(() => {
+      return mockStore.requestPasswordReset(email);
+    }, 'Password reset link sent');
+  },
+
+  resetPassword: async (token: string, newPass: string): Promise<ApiResponse<any>> => {
+    return asyncWrap(() => {
+      return mockStore.resetPassword(token, newPass);
+    }, 'Password updated successfully');
   },
 
   getMe: async (): Promise<ApiResponse<any>> => {
@@ -210,19 +254,23 @@ export const api = {
       const path = typeof window !== 'undefined' ? window.location.pathname : '';
       if (path.startsWith('/client')) {
         const stored = typeof window !== 'undefined' ? localStorage.getItem('goldstamp_merchant_user') : null;
-        const userId = stored ? JSON.parse(stored).id : 'usr_owner_smash';
-        const user = mockStore.getUserById(userId) || mockStore.getUserByEmail('owner@smashzone.com');
-        const business = user ? mockStore.getBusinessByOwnerId(user.id) || mockStore.getRaw().businesses[0] : null;
+        if (!stored) return null;
+        const parsed = safeJsonParse<any>(stored, null);
+        if (!parsed) return null;
+        const user = mockStore.getUserById(parsed.id) || mockStore.getUserByEmail(parsed.email);
+        const business = user ? mockStore.getBusinessByOwnerId(user.id) : null;
         return {
           ...user,
           ownedBusinesses: business ? [business] : [],
         };
       }
 
-      if (path.startsWith('/admin')) {
+      if (path.startsWith('/admin') || path.startsWith('/vault-master-gs-8821')) {
         const stored = typeof window !== 'undefined' ? localStorage.getItem('goldstamp_admin_user') : null;
-        const userId = stored ? JSON.parse(stored).id : 'usr_admin';
-        const user = mockStore.getUserById(userId) || mockStore.getUserByEmail('admin@example.com');
+        if (!stored) return null;
+        const parsed = safeJsonParse<any>(stored, null);
+        if (!parsed) return null;
+        const user = mockStore.getUserById(parsed.id) || mockStore.getUserByEmail(parsed.email);
         return {
           ...user,
           ownedBusinesses: [],
@@ -234,7 +282,8 @@ export const api = {
         ? (localStorage.getItem('goldstamp_customer_user') || localStorage.getItem('goldstamp_user'))
         : null;
       if (!stored) return null;
-      const parsed = JSON.parse(stored);
+      const parsed = safeJsonParse<any>(stored, null);
+      if (!parsed) return null;
       const user = mockStore.getUserById(parsed.id);
       return user || null;
     });

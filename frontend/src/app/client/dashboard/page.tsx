@@ -34,9 +34,12 @@ export default function ClientDashboardPage() {
 
   useEffect(() => {
     async function loadMetrics() {
-      const targetBizId = business?.id || 'biz_smashzone';
+      if (!business?.id) {
+        setLoading(false);
+        return;
+      }
       try {
-        const res = await api.getBusinessAnalytics(targetBizId);
+        const res = await api.getBusinessAnalytics(business.id);
         if (res.success && res.data) {
           setData(res.data);
         }
@@ -48,7 +51,7 @@ export default function ClientDashboardPage() {
     }
 
     loadMetrics();
-  }, [business]);
+  }, [business?.id]);
 
   const summary = data?.summary || {
     totalCustomers: 0,

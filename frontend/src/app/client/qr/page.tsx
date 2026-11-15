@@ -29,7 +29,15 @@ export default function ClientQrPage() {
     loadBranches();
   }, [business]);
 
-  const targetBusiness = business || { id: 'biz_smashzone', name: 'SmashZone Pickleball Arena' };
+  if (!business) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px] text-slate-400 text-xs">
+        Loading merchant counter kiosk...
+      </div>
+    );
+  }
+
+  const targetBusiness = business;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

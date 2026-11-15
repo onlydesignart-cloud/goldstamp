@@ -40,6 +40,8 @@ export interface MockStoreState {
   subscriptions: any[];
   invoices: any[];
   auditLogs: any[];
+  pendingVerifications: any[];
+  passwordResetTokens: any[];
   settings?: PlatformSettings;
 }
 
@@ -464,6 +466,8 @@ const INITIAL_DATA: MockStoreState = {
   ],
 
   auditLogs: [],
+  pendingVerifications: [],
+  passwordResetTokens: [],
 
   settings: {
     autoApproveBusinesses: false,
@@ -502,6 +506,8 @@ class MockDataStore {
     try {
       const parsed = JSON.parse(raw);
       if (!parsed.auditLogs) parsed.auditLogs = [];
+      if (!parsed.pendingVerifications) parsed.pendingVerifications = [];
+      if (!parsed.passwordResetTokens) parsed.passwordResetTokens = [];
       return parsed;
     } catch {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DATA));
@@ -533,6 +539,243 @@ class MockDataStore {
 
   public getRaw(): MockStoreState {
     return this.getDb();
+  }
+
+  // --- Merchant Email Confirmation & Authentication Flow ---
+  public createPendingMerchantRegistration(data: {
+    businessName: string;
+    ownerName: string;
+    email: string;
+    phone?: string;
+    industry?: string;
+    city?: string;
+    password: string;
+  }) {
+    const db = this.getDb();
+    const cleanEmail = data.email.trim().toLowerCase();
+
+    // Check if user already exists and is active
+    const existingActive = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (existingActive) {
+      throw new Error('EMAIL_EXISTS: An account with this email address is already registered and verified.');
+    }
+
+    // Generate secure verification token
+    const token = `verify_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`;
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+
+    const pendingRecord = {
+      id: `pend_${Date.now()}`,
+      name: data.ownerName,
+      email: cleanEmail,
+      phone: data.phone || '',
+      password: data.password,
+      businessName: data.businessName,
+      industry: data.industry || 'Local Commerce',
+      city: data.city || '',
+      verificationToken: token,
+      expiresAt,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Remove any previous pending registration for this email
+    db.pendingVerifications = (db.pendingVerifications || []).filter(
+      (p) => p.email.toLowerCase() !== cleanEmail
+    );
+    db.pendingVerifications.push(pendingRecord);
+    this.saveDb(db);
+
+    return {
+      verificationToken: token,
+      email: cleanEmail,
+      businessName: data.businessName,
+      expiresAt,
+    };
+  }
+
+  public getPendingVerificationByEmail(email: string) {
+    const db = this.getDb();
+    return (db.pendingVerifications || []).find((p) => p.email.toLowerCase() === email.trim().toLowerCase()) || null;
+  }
+
+  public getPendingVerificationByToken(token: string) {
+    const db = this.getDb();
+    return (db.pendingVerifications || []).find((p) => p.verificationToken === token) || null;
+  }
+
+  public verifyMerchantEmail(token: string) {
+    const db = this.getDb();
+    const pending = (db.pendingVerifications || []).find((p) => p.verificationToken === token);
+
+    if (!pending) {
+      throw new Error('INVALID_TOKEN: Verification link is invalid or has already been used.');
+    }
+
+    if (new Date(pending.expiresAt).getTime() < Date.now()) {
+      throw new Error('EXPIRED_TOKEN: This confirmation link has expired. Please register again or request a new link.');
+    }
+
+    // Now safely create the authenticated merchant user in the active DB
+    const userId = `usr_owner_${Date.now()}`;
+    const newUser = {
+      id: userId,
+      name: pending.name,
+      email: pending.email,
+      phone: pending.phone || '',
+      password: pending.password,
+      role: 'BUSINESS_OWNER',
+      status: 'ACTIVE',
+      emailVerified: true,
+      emailVerifiedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+    db.users.push(newUser);
+
+    // Create the business record
+    const baseSlug = pending.businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const bizSlug = `${baseSlug}-${Math.random().toString(36).substring(2, 6)}`;
+    const newBiz = {
+      id: `biz_${Date.now()}`,
+      name: pending.businessName,
+      slug: bizSlug,
+      ownerId: userId,
+      industryId: 'ind_custom',
+      industry: { name: pending.industry, slug: 'custom' },
+      logo: null,
+      coverImage: '/images/hero-counter.jpg',
+      description: `Premier ${pending.industry} in ${pending.city || 'India'}`,
+      address: pending.city || 'Headquarters',
+      city: pending.city || '',
+      phone: pending.phone || '',
+      email: pending.email,
+      status: 'ACTIVE',
+      cooldownMinutes: 30,
+      createdAt: new Date().toISOString(),
+    };
+    db.businesses.push(newBiz);
+
+    // Audit log confirmation
+    db.auditLogs = db.auditLogs || [];
+    db.auditLogs.unshift({
+      id: `audit_verify_${Date.now()}`,
+      action: 'MERCHANT_EMAIL_CONFIRMED',
+      actor: { name: pending.name, email: pending.email },
+      actorRole: 'BUSINESS_OWNER',
+      entityId: userId,
+      entityType: 'USER_VERIFICATION',
+      status: 'VERIFIED',
+      metadata: { businessName: pending.businessName, token: token.substring(0, 10) + '...' },
+      createdAt: new Date().toISOString(),
+    });
+
+    // Remove from pending registrations
+    db.pendingVerifications = db.pendingVerifications.filter((p) => p.verificationToken !== token);
+    this.saveDb(db);
+
+    return {
+      success: true,
+      user: newUser,
+      business: newBiz,
+    };
+  }
+
+  public resendMerchantVerificationEmail(email: string) {
+    const db = this.getDb();
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check if already active
+    if (db.users.some((u) => u.email.toLowerCase() === cleanEmail)) {
+      throw new Error('ALREADY_VERIFIED: This account is already confirmed. You can log in directly.');
+    }
+
+    const pending = (db.pendingVerifications || []).find((p) => p.email.toLowerCase() === cleanEmail);
+    if (!pending) {
+      throw new Error('NOT_FOUND: No pending registration found for this email. Please register first.');
+    }
+
+    // Refresh token
+    const token = `verify_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`;
+    pending.verificationToken = token;
+    pending.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    this.saveDb(db);
+
+    return {
+      success: true,
+      verificationToken: token,
+      email: cleanEmail,
+    };
+  }
+
+  // --- Merchant & User Password Reset ---
+  public requestPasswordReset(email: string) {
+    const db = this.getDb();
+    const cleanEmail = email.trim().toLowerCase();
+    const user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      // Check if it's pending
+      const isPending = (db.pendingVerifications || []).some((p) => p.email.toLowerCase() === cleanEmail);
+      if (isPending) {
+        throw new Error('EMAIL_NOT_VERIFIED: Your email is awaiting confirmation. Please click the activation link in your inbox.');
+      }
+      throw new Error('ACCOUNT_NOT_FOUND: No active account found with this email address.');
+    }
+
+    const resetToken = `reset_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`;
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+
+    db.passwordResetTokens = db.passwordResetTokens || [];
+    db.passwordResetTokens = db.passwordResetTokens.filter((r) => r.email.toLowerCase() !== cleanEmail);
+    db.passwordResetTokens.push({
+      email: cleanEmail,
+      userId: user.id,
+      resetToken,
+      expiresAt,
+      createdAt: new Date().toISOString(),
+    });
+    this.saveDb(db);
+
+    return {
+      success: true,
+      resetToken,
+      email: cleanEmail,
+    };
+  }
+
+  public resetPassword(token: string, newPassword: string) {
+    const db = this.getDb();
+    const record = (db.passwordResetTokens || []).find((r) => r.resetToken === token);
+
+    if (!record) {
+      throw new Error('INVALID_TOKEN: Password reset link is invalid or has expired.');
+    }
+
+    if (new Date(record.expiresAt).getTime() < Date.now()) {
+      throw new Error('EXPIRED_TOKEN: Password reset link has expired. Please request a new one.');
+    }
+
+    const user = db.users.find((u) => u.id === record.userId || u.email.toLowerCase() === record.email.toLowerCase());
+    if (!user) {
+      throw new Error('USER_NOT_FOUND: Associated user account could not be found.');
+    }
+
+    user.password = newPassword;
+    db.passwordResetTokens = db.passwordResetTokens.filter((r) => r.resetToken !== token);
+
+    db.auditLogs = db.auditLogs || [];
+    db.auditLogs.unshift({
+      id: `audit_pwd_${Date.now()}`,
+      action: 'PASSWORD_RESET_SUCCESS',
+      actor: { name: user.name, email: user.email },
+      actorRole: user.role,
+      entityId: user.id,
+      entityType: 'AUTH',
+      status: 'VERIFIED',
+      createdAt: new Date().toISOString(),
+    });
+
+    this.saveDb(db);
+    return { success: true };
   }
 
   public getUserByEmail(email: string) {
