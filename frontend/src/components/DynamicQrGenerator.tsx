@@ -41,7 +41,7 @@ export const DynamicQrGenerator: React.FC<DynamicQrGeneratorProps> = ({
         try {
           const parsed = JSON.parse(stored);
           if (parsed.name) setActiveCustomerName(parsed.name);
-        } catch {}
+        } catch { }
       }
     }
   }, []);
@@ -114,11 +114,10 @@ export const DynamicQrGenerator: React.FC<DynamicQrGeneratorProps> = ({
 
   return (
     <div
-      className={`bg-white rounded-3xl border border-slate-200 transition-all ${
-        isFullScreen
-          ? 'fixed inset-0 z-50 p-8 flex flex-col items-center justify-center bg-slate-950/95 text-white backdrop-blur-2xl'
-          : 'p-6 shadow-sm'
-      }`}
+      className={`bg-white rounded-3xl border border-slate-200 transition-all ${isFullScreen
+        ? 'fixed inset-0 z-50 p-8 flex flex-col items-center justify-center bg-slate-950/95 text-white backdrop-blur-2xl'
+        : 'p-6 shadow-sm'
+        }`}
     >
       <div className="flex items-center justify-between w-full max-w-md mb-4">
         <div>
@@ -135,18 +134,16 @@ export const DynamicQrGenerator: React.FC<DynamicQrGeneratorProps> = ({
           <button
             onClick={fetchNewQr}
             disabled={loading}
-            className={`p-2 rounded-xl border transition disabled:opacity-50 ${
-              isFullScreen ? 'border-slate-800 hover:bg-slate-900 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600'
-            }`}
+            className={`p-2 rounded-xl border transition disabled:opacity-50 ${isFullScreen ? 'border-slate-800 hover:bg-slate-900 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+              }`}
             title="Refresh QR manually"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-purple-500' : ''}`} />
           </button>
           <button
             onClick={() => setIsFullScreen(!isFullScreen)}
-            className={`p-2 rounded-xl border transition ${
-              isFullScreen ? 'border-slate-800 hover:bg-slate-900 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600'
-            }`}
+            className={`p-2 rounded-xl border transition ${isFullScreen ? 'border-slate-800 hover:bg-slate-900 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+              }`}
             title={isFullScreen ? 'Exit Kiosk Mode' : 'Kiosk Full Screen Mode'}
           >
             {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -166,9 +163,8 @@ export const DynamicQrGenerator: React.FC<DynamicQrGeneratorProps> = ({
       </div>
 
       {/* QR Code Canvas / Image Display */}
-      <div className={`p-6 rounded-2xl border flex flex-col items-center justify-center relative w-full max-w-md overflow-hidden ${
-        isFullScreen ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200/80'
-      }`}>
+      <div className={`p-6 rounded-2xl border flex flex-col items-center justify-center relative w-full max-w-md overflow-hidden ${isFullScreen ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200/80'
+        }`}>
         {/* Subtle holographic scanning effect */}
         <div className="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-purple-500 to-transparent animate-pulse top-1/2 -translate-y-1/2 opacity-70 pointer-events-none" />
 

@@ -50,11 +50,10 @@ export const AdminSidebar: React.FC = () => {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition ${
-                  isActive
-                    ? 'bg-purple-600 text-white font-bold shadow-md shadow-purple-600/20'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                }`}
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition ${isActive
+                  ? 'bg-purple-600 text-white font-bold shadow-md shadow-purple-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                  }`}
               >
                 <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                 <span>{link.label}</span>

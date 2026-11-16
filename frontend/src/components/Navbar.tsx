@@ -84,22 +84,6 @@ export const Navbar: React.FC = () => {
                   >
                     My Rewards
                   </Link>
-                  <Link
-                    href="/profile"
-                    className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-                      pathname === '/profile'
-                        ? 'text-slate-950 font-semibold bg-slate-100'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                    }`}
-                  >
-                    <UserIcon className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>My Profile</span>
-                    {!user?.phone && (
-                      <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full border border-amber-300 animate-pulse">
-                        Link WhatsApp
-                      </span>
-                    )}
-                  </Link>
                 </>
               )}
 
@@ -177,30 +161,11 @@ export const Navbar: React.FC = () => {
                       {user.name?.charAt(0) || 'U'}
                     </div>
                     <div className="flex flex-col text-left">
-                      <span className="text-xs font-bold text-slate-900 leading-tight flex items-center gap-1">
-                        <span>{user.name}</span>
-                        {isCustomer && !user.phone && (
-                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="WhatsApp Pending"></span>
-                        )}
+                      <span className="text-xs font-bold text-slate-900 leading-tight">
+                        {user.name}
                       </span>
                       <span className="text-[10px] text-slate-500 font-medium">
-                        {isCustomer ? (
-                          user.phone ? (
-                            <span className="text-emerald-700 flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                              WhatsApp Active
-                            </span>
-                          ) : (
-                            <span className="text-amber-700 flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                              Link WhatsApp
-                            </span>
-                          )
-                        ) : business ? (
-                          business.name
-                        ) : (
-                          'Profile & Settings'
-                        )}
+                        {isCustomer ? 'Profile & Settings' : business ? business.name : 'Account'}
                       </span>
                     </div>
                   </Link>
@@ -248,6 +213,27 @@ export const Navbar: React.FC = () => {
         </div>
       </div>
 
+      {/* Separate WhatsApp Alert Strip (compact 1-2 lines max) */}
+      {isCustomer && user && (!user.phone || user.phone.replace(/[^0-9]/g, '').length < 10) && pathname !== '/profile' && (
+        <div className="bg-amber-50 border-t border-amber-200/80 px-4 py-2 text-xs text-amber-900">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+              <p className="leading-snug">
+                <strong>Link WhatsApp:</strong> Add your WhatsApp number to receive your digital stamp cards and reward vouchers directly.
+              </p>
+            </div>
+            <Link
+              href="/profile?prompt=whatsapp"
+              className="inline-flex items-center gap-1 font-bold text-amber-800 hover:text-amber-950 underline underline-offset-2 shrink-0 text-xs"
+            >
+              <span>Link Number</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-6 space-y-3">
@@ -275,21 +261,6 @@ export const Navbar: React.FC = () => {
                   className="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100"
                 >
                   My Rewards
-                </Link>
-                <Link
-                  href="/profile"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100"
-                >
-                  <span className="flex items-center gap-2">
-                    <UserIcon className="w-4 h-4 text-emerald-600" />
-                    <span>My Profile</span>
-                  </span>
-                  {!user?.phone && (
-                    <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300">
-                      Link WhatsApp
-                    </span>
-                  )}
                 </Link>
               </>
             )}
