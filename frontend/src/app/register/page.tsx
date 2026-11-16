@@ -327,9 +327,6 @@ export default function CustomerRegisterPage() {
                     className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-600 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 transition"
                   />
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  A 6-digit confirmation code will be dispatched to this Gmail address.
-                </p>
               </div>
 
               {/* Mobile Whatsapp Number */}
@@ -411,7 +408,7 @@ export default function CustomerRegisterPage() {
                 disabled={loading}
                 className="w-full py-2.5 px-4 rounded-xl bg-slate-950 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
               >
-                {loading ? 'Sending Verification Code...' : 'Sign Up & Get Verification Code'}
+                {loading ? 'Signing Up...' : 'Sign Up'}
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
 

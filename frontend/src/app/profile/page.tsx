@@ -19,6 +19,8 @@ import {
   AlertTriangle,
   Save,
   CheckCircle2,
+  Pencil,
+  X,
 } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -27,16 +29,18 @@ export default function ProfilePage() {
   const [loadingPass, setLoadingPass] = useState(true);
   const [testSent, setTestSent] = useState<string | null>(null);
 
-  // WhatsApp Profile Editing State
+  // Profile Editing State (Full Name & WhatsApp Phone)
+  const [nameInput, setNameInput] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
-  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user?.phone) {
-      setPhoneInput(user.phone);
+    if (user) {
+      setNameInput(user.name || '');
+      setPhoneInput(user.phone || '');
     }
   }, [user]);
 
@@ -44,7 +48,7 @@ export default function ProfilePage() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('prompt') === 'whatsapp' || params.get('missing_whatsapp') === 'true') {
-        setIsEditingPhone(true);
+        setIsEditingProfile(true);
       }
     }
   }, []);
@@ -66,26 +70,37 @@ export default function ProfilePage() {
     loadCustomerPass();
   }, [user]);
 
-  const handleSavePhone = async (e?: React.FormEvent) => {
+  const handleSaveProfile = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (!nameInput.trim() || nameInput.trim().length < 2) {
+      setErrorMsg('Please enter a valid full name (minimum 2 characters).');
+      return;
+    }
+
     const clean = phoneInput.replace(/[^0-9]/g, '');
-    if (clean.length < 10) {
-      setErrorMsg('Please enter a valid 10-digit mobile number');
+    if (clean && clean.length < 10) {
+      setErrorMsg('Please enter a valid 10-digit mobile number.');
       return;
     }
 
     setSaveLoading(true);
     setErrorMsg(null);
 
-    const fullPhone = phoneInput.startsWith('+') ? phoneInput : `+91 ${clean.slice(-10)}`;
-    const res = await updateProfile({ phone: fullPhone });
+    const fullPhone = clean
+      ? (phoneInput.startsWith('+') ? phoneInput : `+91 ${clean.slice(-10)}`)
+      : '';
+
+    const res = await updateProfile({
+      name: nameInput.trim(),
+      phone: fullPhone,
+    });
 
     if (res.success) {
-      setSaveSuccess('WhatsApp number saved! Dual Sync (WhatsApp + Gmail) is now active.');
-      setIsEditingPhone(false);
-      setTimeout(() => setSaveSuccess(null), 5000);
+      setSaveSuccess('Profile details updated successfully!');
+      setIsEditingProfile(false);
+      setTimeout(() => setSaveSuccess(null), 4000);
     } else {
-      setErrorMsg(res.error || 'Failed to update phone number');
+      setErrorMsg(res.error || 'Failed to update profile.');
     }
     setSaveLoading(false);
   };
@@ -94,6 +109,12 @@ export default function ProfilePage() {
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center">
         <p className="text-sm text-slate-500">Please sign in to view your profile.</p>
+        <Link
+          href="/login"
+          className="mt-4 inline-block px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold"
+        >
+          Go to Login
+        </Link>
       </div>
     );
   }
@@ -111,43 +132,25 @@ export default function ProfilePage() {
             </div>
             <div className="flex-1">
               <h3 className="text-sm font-bold text-amber-950">
-                WhatsApp Number Required to Join Loyalty Programs
+                WhatsApp Number Required to Receive Real-Time Alerts
               </h3>
               <p className="text-xs text-amber-800/90 mt-1 leading-relaxed">
                 You are currently signed in with Gmail (<strong>{user.email}</strong>). To join loyalty
-                programs and receive real-time stamp updates and free vouchers simultaneously on both
-                channels, please add your WhatsApp number below.
+                programs and receive instant stamp updates and reward vouchers on WhatsApp, please link your number.
               </p>
             </div>
           </div>
 
-          <div className="bg-white p-3 rounded-2xl border border-amber-200/90 space-y-2">
-            <label className="text-[11px] font-bold text-slate-700 block">
-              Enter 10-Digit WhatsApp Mobile Number:
-            </label>
-            <div className="flex gap-2">
-              <div className="bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-700 flex items-center">
-                🇮🇳 +91
-              </div>
-              <input
-                type="tel"
-                value={phoneInput}
-                onChange={(e) => setPhoneInput(e.target.value)}
-                placeholder="98765 43210"
-                className="flex-1 bg-slate-50 border border-slate-200 focus:border-emerald-600 focus:bg-white rounded-xl px-3 py-2 text-xs text-slate-900 font-semibold"
-              />
-              <button
-                type="button"
-                onClick={() => handleSavePhone()}
-                disabled={saveLoading}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-xs disabled:opacity-50 flex items-center gap-1.5"
-              >
-                <Save className="w-3.5 h-3.5" />
-                <span>{saveLoading ? 'Saving...' : 'Link WhatsApp'}</span>
-              </button>
-            </div>
-            {errorMsg && <p className="text-[11px] text-rose-600 font-medium">{errorMsg}</p>}
-          </div>
+          {!isEditingProfile && (
+            <button
+              type="button"
+              onClick={() => setIsEditingProfile(true)}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-xs flex items-center gap-1.5"
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span>Link WhatsApp Number Now</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -171,66 +174,123 @@ export default function ProfilePage() {
           <span>Active Customer Member</span>
         </div>
 
-        <div className="mt-6 pt-6 border-t border-slate-100 space-y-3 text-xs text-slate-600 max-w-sm mx-auto text-left">
-          <div className="flex items-center justify-between">
-            <span className="text-slate-400 flex items-center gap-1.5">
-              <Mail className="w-3.5 h-3.5" /> Gmail / Email
-            </span>
-            <span className="font-medium text-slate-800">{user.email}</span>
-          </div>
+        {/* View / Edit Mode */}
+        {!isEditingProfile ? (
+          <div className="mt-6 pt-6 border-t border-slate-100 space-y-3.5 text-xs text-slate-600 max-w-sm mx-auto text-left">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5" /> Full Name
+              </span>
+              <span className="font-semibold text-slate-800">{user.name}</span>
+            </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-slate-400 flex items-center gap-1.5">
-              <Phone className="w-3.5 h-3.5" /> WhatsApp Phone
-            </span>
-            {hasPhone && !isEditingPhone ? (
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-slate-800">{user.phone}</span>
-                <button
-                  type="button"
-                  onClick={() => setIsEditingPhone(true)}
-                  className="text-[11px] text-emerald-700 hover:underline font-semibold"
-                >
-                  Edit
-                </button>
-              </div>
-            ) : isEditingPhone ? (
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5" /> Gmail / Email
+              </span>
+              <span className="font-medium text-slate-800">{user.email}</span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5" /> WhatsApp Phone
+              </span>
+              {hasPhone ? (
+                <span className="font-semibold text-slate-800">{user.phone}</span>
+              ) : (
+                <span className="text-amber-700 bg-amber-50 font-bold px-2 py-0.5 rounded-lg border border-amber-200 text-[11px]">
+                  Missing
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5" /> Customer ID
+              </span>
+              <span className="font-mono text-slate-600 text-[11px] truncate max-w-[130px]">
+                {user.id}
+              </span>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setNameInput(user.name);
+                  setPhoneInput(user.phone || '');
+                  setIsEditingProfile(true);
+                  setErrorMsg(null);
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs transition flex items-center justify-center gap-1.5"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Edit Profile Info</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSaveProfile} className="mt-6 pt-6 border-t border-slate-100 space-y-4 max-w-sm mx-auto text-left">
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1">
+                Full Name
+              </label>
+              <input
+                type="text"
+                required
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                placeholder="Your Name"
+                className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white rounded-xl px-3 py-2 text-xs text-slate-900 font-medium"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1">
+                WhatsApp Phone Number
+              </label>
+              <div className="flex gap-2">
+                <div className="bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-700 flex items-center shrink-0">
+                  🇮🇳 +91
+                </div>
                 <input
                   type="tel"
                   value={phoneInput}
                   onChange={(e) => setPhoneInput(e.target.value)}
-                  placeholder="+91 98765 43210"
-                  className="w-32 bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs"
+                  placeholder="98765 43210"
+                  className="flex-1 bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white rounded-xl px-3 py-2 text-xs text-slate-900 font-medium"
                 />
-                <button
-                  type="button"
-                  onClick={() => handleSavePhone()}
-                  className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-1 rounded-lg"
-                >
-                  Save
-                </button>
               </div>
-            ) : (
+            </div>
+
+            {errorMsg && (
+              <p className="text-[11px] text-rose-600 font-medium">{errorMsg}</p>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={saveLoading}
+                className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{saveLoading ? 'Saving...' : 'Save Changes'}</span>
+              </button>
               <button
                 type="button"
-                onClick={() => setIsEditingPhone(true)}
-                className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200"
+                onClick={() => {
+                  setNameInput(user.name);
+                  setPhoneInput(user.phone || '');
+                  setIsEditingProfile(false);
+                  setErrorMsg(null);
+                }}
+                className="py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold text-xs transition"
               >
-                + Add WhatsApp Number
+                Cancel
               </button>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span className="text-slate-400 flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5" /> Customer ID
-            </span>
-            <span className="font-mono text-slate-600 text-[11px] truncate max-w-[120px]">
-              {user.id}
-            </span>
-          </div>
-        </div>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* WhatsApp & Gmail Simultaneous Notification Channels Card */}
@@ -309,7 +369,7 @@ export default function ProfilePage() {
             ) : (
               <button
                 type="button"
-                onClick={() => setIsEditingPhone(true)}
+                onClick={() => setIsEditingProfile(true)}
                 className="w-full py-1.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[11px] transition"
               >
                 Link WhatsApp Number
@@ -355,14 +415,19 @@ export default function ProfilePage() {
         </Link>
       </div>
 
-      {/* Logout button */}
-      <div className="text-center pt-2">
+      {/* Dedicated Sign Out of Account Card */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-sm flex items-center justify-between">
+        <div>
+          <h3 className="text-xs font-bold text-slate-900">Sign Out of Account</h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">Safely terminate your current session on this device.</p>
+        </div>
         <button
+          type="button"
           onClick={logout}
-          className="text-xs font-semibold text-red-600 hover:text-red-700 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl hover:bg-red-50 transition"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition active:scale-95"
         >
           <LogOut className="w-4 h-4" />
-          <span>Sign Out of Account</span>
+          <span>Sign Out</span>
         </button>
       </div>
     </div>

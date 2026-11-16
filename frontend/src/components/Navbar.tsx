@@ -170,8 +170,8 @@ export const Navbar: React.FC = () => {
                 <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
                   <Link
                     href={isCustomer ? '/profile' : isBusiness ? '/client/dashboard' : '/admin/dashboard'}
-                    className="flex items-center gap-2 p-1 px-2 rounded-xl hover:bg-slate-100 transition border border-transparent hover:border-slate-200 group"
-                    title="Open My Profile & WhatsApp Settings"
+                    className="flex items-center gap-2.5 p-1 px-2.5 rounded-xl hover:bg-slate-100 transition border border-slate-200/80 bg-white shadow-xs group"
+                    title="Profile & Settings"
                   >
                     <div className="w-7 h-7 rounded-lg bg-slate-900 group-hover:bg-emerald-600 transition text-white flex items-center justify-center font-bold text-xs uppercase shadow-xs">
                       {user.name?.charAt(0) || 'U'}
@@ -199,19 +199,11 @@ export const Navbar: React.FC = () => {
                         ) : business ? (
                           business.name
                         ) : (
-                          user.role.toLowerCase().replace('_', ' ')
+                          'Profile & Settings'
                         )}
                       </span>
                     </div>
                   </Link>
-
-                  <button
-                    onClick={logout}
-                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
-                    title="Sign Out"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
                 </div>
               </div>
             ) : (
@@ -324,17 +316,23 @@ export const Navbar: React.FC = () => {
 
           <div className="pt-3 border-t border-slate-100 space-y-2">
             {user ? (
-              <div className="flex items-center justify-between px-2">
-                <span className="text-xs text-slate-600">Logged in as {user.name}</span>
-                <button
-                  onClick={() => {
-                    logout();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="text-xs font-semibold text-rose-600"
+              <div className="px-2">
+                <Link
+                  href={isCustomer ? '/profile' : isBusiness ? '/client/dashboard' : '/admin/dashboard'}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between p-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition border border-slate-200/80"
                 >
-                  Sign Out
-                </button>
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs uppercase">
+                      {user.name?.charAt(0) || 'U'}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900">{user.name}</p>
+                      <p className="text-[10px] text-slate-500">View & Edit Profile</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </Link>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2">
