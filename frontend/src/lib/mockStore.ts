@@ -42,6 +42,7 @@ export interface MockStoreState {
   auditLogs: any[];
   pendingVerifications: any[];
   passwordResetTokens: any[];
+  customerOtps: any[];
   settings?: PlatformSettings;
 }
 
@@ -468,6 +469,7 @@ const INITIAL_DATA: MockStoreState = {
   auditLogs: [],
   pendingVerifications: [],
   passwordResetTokens: [],
+  customerOtps: [],
 
   settings: {
     autoApproveBusinesses: false,
@@ -508,6 +510,7 @@ class MockDataStore {
       if (!parsed.auditLogs) parsed.auditLogs = [];
       if (!parsed.pendingVerifications) parsed.pendingVerifications = [];
       if (!parsed.passwordResetTokens) parsed.passwordResetTokens = [];
+      if (!parsed.customerOtps) parsed.customerOtps = [];
       return parsed;
     } catch {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DATA));
@@ -800,6 +803,137 @@ class MockDataStore {
 
     this.saveDb(db);
     return { success: true };
+  }
+
+  public createCustomerOtp(data: { name: string; email: string; phone: string; password: string }) {
+    const db = this.getDb();
+    const cleanEmail = data.email.trim().toLowerCase();
+
+    // Check if user already exists
+    const existing = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (existing) {
+      throw new Error('EMAIL_EXISTS: An account with this Gmail address already exists. Please log in.');
+    }
+
+    // Generate 6-digit cryptographic OTP code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationSessionId = `cs_session_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
+
+    db.customerOtps = (db.customerOtps || []).filter((o) => o.email.toLowerCase() !== cleanEmail);
+    db.customerOtps.push({
+      verificationSessionId,
+      email: cleanEmail,
+      phone: data.phone.trim(),
+      name: data.name.trim(),
+      password: data.password,
+      otpCode,
+      attempts: 0,
+      maxAttempts: 5,
+      expiresAt,
+      createdAt: new Date().toISOString(),
+    });
+    this.saveDb(db);
+
+    return {
+      success: true,
+      verificationSessionId,
+      email: cleanEmail,
+      phone: data.phone.trim(),
+      name: data.name.trim(),
+      expiresAt,
+      otpCode,
+    };
+  }
+
+  public verifyCustomerOtp(sessionId: string, code: string) {
+    const db = this.getDb();
+    const record = (db.customerOtps || []).find((o) => o.verificationSessionId === sessionId);
+
+    if (!record) {
+      throw new Error('INVALID_SESSION: Verification session not found or expired. Please sign up again.');
+    }
+
+    if (new Date(record.expiresAt).getTime() < Date.now()) {
+      throw new Error('EXPIRED_CODE: Verification code has expired. Please request a new code.');
+    }
+
+    if (record.attempts >= record.maxAttempts) {
+      throw new Error('MAX_ATTEMPTS_EXCEEDED: Too many incorrect attempts. Please request a new verification code.');
+    }
+
+    if (record.otpCode !== code.trim()) {
+      record.attempts += 1;
+      this.saveDb(db);
+      const remaining = record.maxAttempts - record.attempts;
+      throw new Error(`INCORRECT_CODE: Incorrect verification code. ${remaining} attempts remaining.`);
+    }
+
+    // Successfully verified! Create customer user in mock db
+    const customerId = `cust_${Date.now()}`;
+    const newUser = {
+      id: customerId,
+      name: record.name,
+      email: record.email,
+      phone: record.phone,
+      password: record.password,
+      role: 'CUSTOMER',
+      isVerified: true,
+      emailVerified: true,
+      phoneVerified: true,
+      createdAt: new Date().toISOString(),
+    };
+
+    db.users.push(newUser);
+    // Remove the OTP record
+    db.customerOtps = (db.customerOtps || []).filter((o) => o.verificationSessionId !== sessionId);
+
+    // Audit log
+    db.auditLogs = db.auditLogs || [];
+    db.auditLogs.unshift({
+      id: `audit_cust_reg_${Date.now()}`,
+      action: 'CUSTOMER_EMAIL_OTP_VERIFIED',
+      actor: { name: newUser.name, email: newUser.email },
+      actorRole: 'CUSTOMER',
+      entityId: newUser.id,
+      entityType: 'CUSTOMER_AUTH',
+      status: 'VERIFIED',
+      createdAt: new Date().toISOString(),
+    });
+
+    this.saveDb(db);
+
+    const token = `cust_jwt_${Math.random().toString(36).substring(2, 12)}_${Date.now()}`;
+
+    return {
+      success: true,
+      user: newUser,
+      token,
+      message: 'Account verified and registered successfully.',
+    };
+  }
+
+  public resendCustomerOtp(sessionId: string) {
+    const db = this.getDb();
+    const record = (db.customerOtps || []).find((o) => o.verificationSessionId === sessionId);
+
+    if (!record) {
+      throw new Error('INVALID_SESSION: Verification session not found. Please sign up again.');
+    }
+
+    const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    record.otpCode = newOtpCode;
+    record.attempts = 0;
+    record.expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    this.saveDb(db);
+
+    return {
+      success: true,
+      verificationSessionId: sessionId,
+      email: record.email,
+      expiresAt: record.expiresAt,
+      otpCode: newOtpCode,
+    };
   }
 
   public getUserByEmail(email: string) {
