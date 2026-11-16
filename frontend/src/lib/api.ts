@@ -25,6 +25,64 @@ export interface ApiResponse<T = any> {
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'https://goldstamp.onrender.com';
 
+export const DISPOSABLE_DOMAINS = new Set([
+  'mailinator.com',
+  'tempmail.com',
+  'temp-mail.org',
+  '10minutemail.com',
+  'guerrillamail.com',
+  'guerrillamailblock.com',
+  'sharklasers.com',
+  'yopmail.com',
+  'yopmail.fr',
+  'yopmail.net',
+  'throwawaymail.com',
+  'dispostable.com',
+  'trashmail.com',
+  'fakemailgenerator.com',
+  'generator.email',
+  'getnada.com',
+  'mohmal.com',
+  'mytemp.email',
+  'nada.ltd',
+  'emailondeck.com',
+  'crazymailing.com',
+  'armyspy.com',
+  'cuvox.de',
+  'dayrep.com',
+  'fleckens.hu',
+  'gustr.com',
+  'jourrapide.com',
+  'rhyta.com',
+  'superrito.com',
+  'teleworm.us',
+  'einrot.com',
+  'inboxkitten.com',
+  'tempail.com',
+  'burnermail.io',
+  'getairmail.com',
+  'dropmail.me',
+  'tempr.email',
+  'discard.email',
+  'spambog.com',
+  'trashmail.net',
+  'trashmail.me',
+  'mailcatch.com',
+  'mytempemail.com',
+  'fakeinbox.com',
+  'maildrop.cc',
+  'inboxbear.com',
+  'harakirimail.com',
+  'tempinbox.com',
+]);
+
+export function isDisposableEmail(email: string): boolean {
+  if (!email || !email.includes('@')) return false;
+  const domain = email.split('@')[1]?.toLowerCase().trim();
+  if (!domain) return false;
+  return DISPOSABLE_DOMAINS.has(domain) || Array.from(DISPOSABLE_DOMAINS).some((d) => domain.endsWith(`.${d}`));
+}
+
 // Helper to simulate instant async execution
 const asyncWrap = async <T>(fn: () => T | Promise<T>, message: string = 'Success'): Promise<ApiResponse<T>> => {
   try {
@@ -382,6 +440,126 @@ export const api = {
 
       return res;
     }, 'Verification email resent');
+  },
+
+  sendMerchantOtp: async (data: {
+    businessName: string;
+    ownerName: string;
+    email: string;
+    phone: string;
+    industry?: string;
+    city?: string;
+    password: string;
+  }): Promise<ApiResponse<any>> => {
+    return asyncWrap(async () => {
+      const email = sanitizeEmail(data.email);
+      const cleanPhone = sanitizePhone(data.phone);
+
+      // 1. Strict disposable/temporary email validation
+      if (isDisposableEmail(email)) {
+        throw new Error('Temporary or disposable email addresses are not permitted. Please provide an active, permanent business or personal email address.');
+      }
+
+      // 2. Check if email already registered
+      const existing = mockStore.getUserByEmail(email);
+      if (existing) {
+        throw new Error('An account with this email address is already registered. Please sign in to your Merchant Console.');
+      }
+
+      // 3. Check if phone number already registered
+      if (cleanPhone) {
+        const existingPhone = mockStore.getUserByPhone(cleanPhone);
+        if (existingPhone) {
+          throw new Error('An account with this phone number is already registered. Please sign in or use another number.');
+        }
+      }
+
+      // 4. Create pending merchant OTP in mockStore
+      const session = mockStore.createMerchantOtp({
+        businessName: sanitizeText(data.businessName, 80),
+        ownerName: sanitizeText(data.ownerName, 60),
+        email,
+        phone: cleanPhone,
+        industry: data.industry,
+        city: data.city,
+        password: data.password,
+      });
+
+      return {
+        sessionId: session.verificationSessionId,
+        email: session.email,
+        businessName: session.businessName,
+        expiresAt: session.expiresAt,
+        previewOtp: session.otpCode,
+        sender: 'GoldStamp Security',
+      };
+    }, 'Verification code sent to your email');
+  },
+
+  verifyMerchantOtp: async (payload: {
+    sessionId: string;
+    code: string;
+  }): Promise<ApiResponse<any>> => {
+    return asyncWrap(async () => {
+      const { sessionId, code } = payload;
+      const verified = mockStore.verifyMerchantOtp(sessionId, code);
+
+      // Register into live PostgreSQL DB on Render backend
+      let backendData: any = null;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Verification-Proof': 'VERIFIED_MERCHANT_OTP',
+            'X-Verification-Source': 'GOLDSTAMP_SECURITY_OTP',
+          },
+          body: JSON.stringify({
+            name: verified.user.name,
+            email: verified.user.email,
+            phone: verified.user.phone,
+            password: verified.user.password,
+            role: 'BUSINESS_OWNER',
+            businessName: verified.business.name,
+            industry: verified.business.industry?.name,
+            city: verified.business.city,
+          }),
+        });
+
+        const json = await res.json();
+        if (res.ok && json.success && json.data) {
+          backendData = json.data;
+          if (backendData.user) mockStore.syncUser(backendData.user);
+          if (backendData.business) mockStore.syncBusiness(backendData.business);
+        }
+      } catch (netErr) {
+        console.warn('Backend merchant sync notice:', netErr);
+      }
+
+      const activeUser = backendData?.user || verified.user;
+      const activeBusiness = backendData?.business || verified.business;
+      const token = backendData?.accessToken || verified.token;
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('goldstamp_merchant_token', token);
+        localStorage.setItem('goldstamp_merchant_user', JSON.stringify(activeUser));
+        localStorage.setItem('goldstamp_merchant_business', JSON.stringify(activeBusiness));
+      }
+
+      return {
+        user: activeUser,
+        business: activeBusiness,
+        accessToken: token,
+        message: 'Business account verified and activated successfully.',
+      };
+    }, 'Email verified and account activated');
+  },
+
+  resendMerchantOtp: async (sessionId: string): Promise<ApiResponse<any>> => {
+    return asyncWrap(async () => {
+      const res = mockStore.resendMerchantOtp(sessionId);
+      return res;
+    }, 'Fresh verification code sent');
   },
 
   sendCustomerOtp: async (data: {

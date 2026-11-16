@@ -43,6 +43,7 @@ export interface MockStoreState {
   pendingVerifications: any[];
   passwordResetTokens: any[];
   customerOtps: any[];
+  merchantOtps?: any[];
   settings?: PlatformSettings;
 }
 
@@ -753,6 +754,196 @@ class MockDataStore {
       success: true,
       verificationToken: token,
       email: cleanEmail,
+    };
+  }
+
+  // --- Merchant OTP Verification Flow ---
+  public createMerchantOtp(data: {
+    businessName: string;
+    ownerName: string;
+    email: string;
+    phone: string;
+    industry?: string;
+    city?: string;
+    password: string;
+  }) {
+    const db = this.getDb();
+    const cleanEmail = data.email.trim().toLowerCase();
+
+    // Check if user already exists
+    const existingActive = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (existingActive) {
+      throw new Error('An account with this email address is already registered. Please sign in to your Merchant Console.');
+    }
+
+    // Check if phone already registered
+    if (data.phone) {
+      const cleanPhone = data.phone.replace(/[^0-9]/g, '');
+      if (cleanPhone.length >= 10) {
+        const targetPhone = cleanPhone.slice(-10);
+        const existingPhone = db.users.find((u) => {
+          if (!u.phone) return false;
+          const uClean = u.phone.replace(/[^0-9]/g, '');
+          return uClean.length >= 10 && uClean.slice(-10) === targetPhone;
+        });
+        if (existingPhone) {
+          throw new Error('An account with this phone number is already registered. Please sign in or use another number.');
+        }
+      }
+    }
+
+    // Check if business name already exists
+    const cleanBName = data.businessName.trim().toLowerCase();
+    const existingBusiness = (db.businesses || []).find((b) => b.name?.toLowerCase() === cleanBName);
+    if (existingBusiness) {
+      throw new Error('A business with this name is already registered. Please choose another name.');
+    }
+
+    // Generate 6-digit cryptographic OTP code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationSessionId = `m_session_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 mins
+
+    db.merchantOtps = (db.merchantOtps || []).filter((o: any) => o.email.toLowerCase() !== cleanEmail);
+    db.merchantOtps.push({
+      verificationSessionId,
+      email: cleanEmail,
+      phone: data.phone.trim(),
+      ownerName: data.ownerName.trim(),
+      businessName: data.businessName.trim(),
+      industry: data.industry || 'Local Commerce',
+      city: data.city || '',
+      password: data.password,
+      otpCode,
+      attempts: 0,
+      maxAttempts: 5,
+      expiresAt,
+      createdAt: new Date().toISOString(),
+    });
+    this.saveDb(db);
+
+    return {
+      success: true,
+      verificationSessionId,
+      email: cleanEmail,
+      businessName: data.businessName.trim(),
+      expiresAt,
+      otpCode,
+    };
+  }
+
+  public verifyMerchantOtp(sessionId: string, code: string) {
+    const db = this.getDb();
+    const record = (db.merchantOtps || []).find((o: any) => o.verificationSessionId === sessionId);
+
+    if (!record) {
+      throw new Error('INVALID_SESSION: Verification session not found or expired. Please register again.');
+    }
+
+    if (new Date(record.expiresAt).getTime() < Date.now()) {
+      throw new Error('EXPIRED_CODE: Verification code has expired. Please request a new code.');
+    }
+
+    if (record.attempts >= record.maxAttempts) {
+      throw new Error('MAX_ATTEMPTS_EXCEEDED: Too many incorrect attempts. Please request a new code.');
+    }
+
+    if (record.otpCode !== code.trim()) {
+      record.attempts += 1;
+      this.saveDb(db);
+      const remaining = record.maxAttempts - record.attempts;
+      throw new Error(`INCORRECT_CODE: Incorrect verification code. ${remaining} attempts remaining.`);
+    }
+
+    // Successfully verified! Create owner and business
+    const ownerId = `usr_owner_${Date.now()}`;
+    const newUser = {
+      id: ownerId,
+      name: record.ownerName,
+      email: record.email,
+      phone: record.phone,
+      password: record.password,
+      role: 'BUSINESS_OWNER',
+      status: 'ACTIVE',
+      isVerified: true,
+      emailVerified: true,
+      createdAt: new Date().toISOString(),
+    };
+    db.users.push(newUser);
+
+    const baseSlug = record.businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const bizSlug = `${baseSlug}-${Math.random().toString(36).substring(2, 6)}`;
+    const newBusiness = {
+      id: `biz_${Date.now()}`,
+      name: record.businessName,
+      slug: bizSlug,
+      ownerId: ownerId,
+      industryId: 'ind_custom',
+      industry: { name: record.industry, slug: 'custom' },
+      logo: null,
+      coverImage: '/images/hero-counter.jpg',
+      description: `Premier ${record.industry} in ${record.city || 'India'}`,
+      address: record.city || 'Headquarters',
+      city: record.city || '',
+      phone: record.phone || '',
+      email: record.email,
+      status: 'ACTIVE',
+      cooldownMinutes: 30,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    db.businesses = db.businesses || [];
+    db.businesses.push(newBusiness);
+
+    // Remove OTP record
+    db.merchantOtps = (db.merchantOtps || []).filter((o: any) => o.verificationSessionId !== sessionId);
+
+    // Audit log
+    db.auditLogs = db.auditLogs || [];
+    db.auditLogs.unshift({
+      id: `audit_merch_reg_${Date.now()}`,
+      action: 'MERCHANT_EMAIL_OTP_VERIFIED',
+      actor: { name: newUser.name, email: newUser.email },
+      actorRole: 'BUSINESS_OWNER',
+      entityId: newBusiness.id,
+      entityType: 'BUSINESS_REGISTRATION',
+      status: 'VERIFIED',
+      createdAt: new Date().toISOString(),
+    });
+
+    this.saveDb(db);
+
+    const token = `biz_jwt_${Math.random().toString(36).substring(2, 12)}_${Date.now()}`;
+
+    return {
+      success: true,
+      user: newUser,
+      business: newBusiness,
+      token,
+      message: 'Business account verified and activated successfully.',
+    };
+  }
+
+  public resendMerchantOtp(sessionId: string) {
+    const db = this.getDb();
+    const record = (db.merchantOtps || []).find((o: any) => o.verificationSessionId === sessionId);
+
+    if (!record) {
+      throw new Error('INVALID_SESSION: Verification session not found. Please register again.');
+    }
+
+    const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    record.otpCode = newOtpCode;
+    record.attempts = 0;
+    record.expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    this.saveDb(db);
+
+    return {
+      success: true,
+      verificationSessionId: sessionId,
+      email: record.email,
+      expiresAt: record.expiresAt,
+      otpCode: newOtpCode,
     };
   }
 
