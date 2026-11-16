@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { api } from './api';
 import { mockStore } from './mockStore';
+import { createClient } from '../utils/supabase/client';
 
 import { ADMIN_ROUTE_PREFIX } from '../config/adminRoute';
 
@@ -129,21 +130,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Customer / Public Session
         const stored = localStorage.getItem('goldstamp_customer_user') || localStorage.getItem('goldstamp_user');
         const token = localStorage.getItem('goldstamp_customer_token') || localStorage.getItem('goldstamp_token');
+        let resolvedUser: any = null;
+
         if (stored && token) {
           try {
             const parsed = JSON.parse(stored);
-            const foundUser = mockStore.getUserById(parsed.id) || mockStore.getUserByEmail(parsed.email);
-            if (foundUser) {
-              setUser(foundUser);
-            } else {
-              setUser(null);
-            }
-          } catch {
-            setUser(null);
-          }
-        } else {
-          setUser(null);
+            resolvedUser = mockStore.getUserById(parsed.id) || mockStore.getUserByEmail(parsed.email);
+          } catch {}
         }
+
+        // Check live Supabase Auth session (e.g. after Google OAuth redirect)
+        if (!resolvedUser && typeof window !== 'undefined') {
+          try {
+            const supabase = createClient();
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+              const supaUser = session.user;
+              const cleanEmail = supaUser.email?.toLowerCase() || '';
+              resolvedUser = mockStore.getUserByEmail(cleanEmail);
+              if (!resolvedUser && cleanEmail) {
+                resolvedUser = mockStore.createUser({
+                  name: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || cleanEmail.split('@')[0],
+                  email: cleanEmail,
+                  phone: supaUser.phone || '',
+                  role: 'CUSTOMER',
+                  status: 'ACTIVE',
+                  avatar: supaUser.user_metadata?.avatar_url || null,
+                });
+              }
+              if (resolvedUser) {
+                localStorage.setItem('goldstamp_customer_token', session.access_token);
+                localStorage.setItem('goldstamp_customer_user', JSON.stringify(resolvedUser));
+                localStorage.setItem('goldstamp_user', JSON.stringify(resolvedUser));
+                localStorage.setItem('goldstamp_token', session.access_token);
+              }
+            }
+          } catch (supaErr) {
+            console.warn('Supabase session load notice:', supaErr);
+          }
+        }
+
+        setUser(resolvedUser || null);
         setBusiness(null);
       }
     } catch (err) {
@@ -157,6 +184,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     refreshProfile();
+
+    // Listen to live Supabase Auth OAuth events
+    if (typeof window !== 'undefined' && !isClientPortal && !isAdminPortal) {
+      try {
+        const supabase = createClient();
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_IN' && session?.user) {
+            const supaUser = session.user;
+            const cleanEmail = supaUser.email?.toLowerCase() || '';
+            let resolved = mockStore.getUserByEmail(cleanEmail);
+            if (!resolved && cleanEmail) {
+              resolved = mockStore.createUser({
+                name: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || cleanEmail.split('@')[0],
+                email: cleanEmail,
+                phone: supaUser.phone || '',
+                role: 'CUSTOMER',
+                status: 'ACTIVE',
+                avatar: supaUser.user_metadata?.avatar_url || null,
+              });
+            }
+            if (resolved) {
+              localStorage.setItem('goldstamp_customer_token', session.access_token);
+              localStorage.setItem('goldstamp_customer_user', JSON.stringify(resolved));
+              localStorage.setItem('goldstamp_user', JSON.stringify(resolved));
+              localStorage.setItem('goldstamp_token', session.access_token);
+              setUser(resolved);
+            }
+          }
+        });
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch (err) {
+        console.warn('Supabase auth listener note:', err);
+      }
+    }
   }, [pathname]);
 
   const login = async (email: string, password: string) => {
