@@ -36,9 +36,19 @@ export default function CustomerLoginPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
+      const hash = window.location.hash;
+
       if (params.get('registered') === 'true') {
         setJustRegistered(true);
       }
+
+      // Secure Error Sanitization: Catch any provider errors and prevent leaking them in URL
+      if (params.get('auth_status') === 'failed' || params.get('error') || hash.includes('error=')) {
+        setError('Authentication was not completed. Please try again or sign in with your email.');
+        // Clean URL history immediately so no internal server error strings linger in browser bar
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
       // Check for remembered email
       const remembered = localStorage.getItem('goldstamp_remember_customer_email');
       if (remembered) {

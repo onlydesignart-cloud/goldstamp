@@ -53,6 +53,17 @@ export default function CustomerRegisterPage() {
 
   // Countdown timer for OTP Resend
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const hash = window.location.hash;
+      if (params.get('auth_status') === 'failed' || params.get('error') || hash.includes('error=')) {
+        setError('Authentication was not completed. Please try again.');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     let timer: any;
     if (step === 'verify' && resendCooldown > 0) {
       timer = setInterval(() => {
