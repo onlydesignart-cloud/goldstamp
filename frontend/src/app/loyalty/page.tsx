@@ -6,7 +6,7 @@ import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { StampCard } from '../../components/StampCard';
 import { RedemptionModal } from '../../components/RedemptionModal';
-import { Stamp, Sparkles, Compass, QrCode, MessageSquare, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Stamp, Sparkles, Compass, QrCode } from 'lucide-react';
 
 export default function LoyaltyPage() {
   const { user } = useAuth();
@@ -71,37 +71,6 @@ export default function LoyaltyPage() {
           </Link>
         </div>
       </div>
-
-      {/* WhatsApp Linking Required Banner */}
-      {user && (!user.phone || user.phone.replace(/[^0-9]/g, '').length < 10) && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-emerald-50 border-2 border-amber-300 rounded-3xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-              <MessageSquare className="w-5 h-5 text-amber-700" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-amber-950 uppercase tracking-wide">
-                  WhatsApp Number Required for Dual Live Alerts
-                </span>
-                <span className="bg-amber-200 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  Action Required
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 mt-1 max-w-2xl">
-                You are signed in with Gmail (<strong>{user.email}</strong>). To join programs and receive instant stamp updates & vouchers on both WhatsApp and Gmail simultaneously, please link your WhatsApp number.
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/profile?prompt=whatsapp"
-            className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition shadow-xs flex items-center gap-1.5 self-start md:self-auto"
-          >
-            <span>Link WhatsApp in Profile</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      )}
 
       {/* Stamp Cards Grid */}
       {!user ? (
