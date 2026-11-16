@@ -11,11 +11,7 @@ import {
   Phone,
   ShieldCheck,
   LogOut,
-  CheckCircle,
-  MessageSquare,
   Sparkles,
-  Send,
-  ExternalLink,
   AlertTriangle,
   Save,
   CheckCircle2,
@@ -27,7 +23,7 @@ export default function ProfilePage() {
   const { user, updateProfile, logout } = useAuth();
   const [passData, setPassData] = useState<any>(null);
   const [loadingPass, setLoadingPass] = useState(true);
-  const [testSent, setTestSent] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   // Profile Editing State (Full Name & WhatsApp Phone)
   const [nameInput, setNameInput] = useState('');
@@ -170,7 +166,7 @@ export default function ProfilePage() {
 
         <h1 className="text-2xl font-bold text-slate-900">{user.name}</h1>
         <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full mt-2">
-          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
           <span>Active Customer Member</span>
         </div>
 
@@ -293,117 +289,6 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {/* WhatsApp & Gmail Simultaneous Notification Channels Card */}
-      <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-              <MessageSquare className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">
-                Simultaneous Dual-Sync Channels
-              </h2>
-              <p className="text-[11px] text-slate-500">
-                Every stamp and voucher is dispatched to both channels simultaneously
-              </p>
-            </div>
-          </div>
-          <span
-            className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-              hasPhone
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                : 'bg-amber-50 text-amber-700 border border-amber-200'
-            }`}
-          >
-            {hasPhone ? 'Dual-Sync Active' : 'WhatsApp Pending'}
-          </span>
-        </div>
-
-        {testSent && (
-          <div className="bg-emerald-950 text-emerald-200 text-xs p-3 rounded-2xl flex items-center gap-2 animate-in fade-in">
-            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{testSent}</span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-          {/* WhatsApp Channel */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                <span
-                  className={`w-2 h-2 rounded-full ${hasPhone ? 'bg-emerald-500' : 'bg-amber-400'}`}
-                ></span>
-                WhatsApp Channel
-              </span>
-              <span
-                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                  hasPhone
-                    ? 'text-emerald-700 bg-emerald-50'
-                    : 'text-amber-700 bg-amber-50 font-bold'
-                }`}
-              >
-                {hasPhone ? 'Active' : 'Missing'}
-              </span>
-            </div>
-            <div className="font-mono text-slate-600 text-[11px]">
-              {user.phone || 'No WhatsApp phone linked'}
-            </div>
-            {hasPhone ? (
-              <a
-                href={`https://wa.me/${user.phone!.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-                  `Gold Stamp Loyalty Alert: Hello ${user.name}, your WhatsApp notification channel is connected. Verified stamp alerts and reward vouchers will be delivered directly here.`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {
-                  setTestSent(`Test notification triggered for ${user.phone}.`);
-                  setTimeout(() => setTestSent(null), 4000);
-                }}
-                className="w-full py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] transition flex items-center justify-center gap-1.5"
-              >
-                <span>Test WhatsApp Alert</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsEditingProfile(true)}
-                className="w-full py-1.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[11px] transition"
-              >
-                Link WhatsApp Number
-              </button>
-            )}
-          </div>
-
-          {/* Gmail Channel */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-                Gmail / Email
-              </span>
-              <span className="text-[10px] font-semibold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full">
-                Active
-              </span>
-            </div>
-            <div className="font-mono text-slate-600 text-[11px] truncate">{user.email}</div>
-            <button
-              type="button"
-              onClick={() => {
-                setTestSent(`Test reward email receipt dispatched to ${user.email}.`);
-                setTimeout(() => setTestSent(null), 4000);
-              }}
-              className="w-full py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-[11px] transition flex items-center justify-center gap-1.5"
-            >
-              <Send className="w-3 h-3" />
-              <span>Test Email Alert</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* How to Collect Stamps Helper */}
       <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 text-xs text-slate-600 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -423,11 +308,15 @@ export default function ProfilePage() {
         </div>
         <button
           type="button"
-          onClick={logout}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition active:scale-95"
+          disabled={loggingOut}
+          onClick={async () => {
+            setLoggingOut(true);
+            await logout();
+          }}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition active:scale-95 disabled:opacity-50"
         >
           <LogOut className="w-4 h-4" />
-          <span>Sign Out</span>
+          <span>{loggingOut ? 'Signing Out...' : 'Sign Out'}</span>
         </button>
       </div>
     </div>

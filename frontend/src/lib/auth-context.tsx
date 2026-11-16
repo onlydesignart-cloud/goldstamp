@@ -39,7 +39,7 @@ interface AuthContextType {
   loginWithGoogle: (googleData?: { email?: string; name?: string; avatar?: string }) => Promise<{ success: boolean; error?: string }>;
   register: (data: any) => Promise<{ success: boolean; error?: string }>;
   updateProfile: (updates: { name?: string; phone?: string; email?: string }) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
+  logout: () => Promise<void> | void;
   switchDemoRole: (target: 'admin' | 'smashzone' | 'cafe' | 'customer') => Promise<void>;
   refreshProfile: () => Promise<void>;
   impersonateBusiness: (businessId: string) => Promise<void>;
@@ -353,28 +353,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: false, error: res.error?.message || 'Failed to update profile' };
   };
 
-  const logout = () => {
+  const logout = async () => {
     if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.warn('Supabase signOut notice:', err);
+      }
+
+      // Thorough cleanup of all auth tokens and cached users
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('sb-') || key.startsWith('goldstamp_'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+        sessionStorage.clear();
+      } catch (storageErr) {
+        console.warn('Storage cleanup notice:', storageErr);
+      }
+
+      // Clear cookies
+      try {
+        document.cookie.split(';').forEach((c) => {
+          document.cookie = c
+            .replace(/^ +/, '')
+            .replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
+        });
+      } catch (cookieErr) {
+        console.warn('Cookie cleanup notice:', cookieErr);
+      }
+
+      setUser(null);
+      setBusiness(null);
+
       if (isClientPortal) {
-        localStorage.removeItem('goldstamp_merchant_token');
-        localStorage.removeItem('goldstamp_merchant_user');
-        localStorage.removeItem('goldstamp_merchant_business');
-        setUser(null);
-        setBusiness(null);
         window.location.href = '/client/login';
       } else if (isAdminPortal) {
-        localStorage.removeItem('goldstamp_admin_token');
-        localStorage.removeItem('goldstamp_admin_user');
-        setUser(null);
-        setBusiness(null);
         window.location.href = `${ADMIN_ROUTE_PREFIX}/login`;
       } else {
-        localStorage.removeItem('goldstamp_customer_token');
-        localStorage.removeItem('goldstamp_customer_user');
-        localStorage.removeItem('goldstamp_user');
-        localStorage.removeItem('goldstamp_token');
-        setUser(null);
-        setBusiness(null);
         window.location.href = '/';
       }
     }

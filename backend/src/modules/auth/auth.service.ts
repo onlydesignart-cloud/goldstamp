@@ -18,7 +18,28 @@ export class AuthService {
   }) {
     const existing = await authRepository.findByEmail(data.email);
     if (existing) {
+      if (data.password && data.password.startsWith('OAuth_')) {
+        const accessToken = signAccessToken({ id: existing.id, email: existing.email, role: existing.role });
+        const refreshToken = signRefreshToken({ id: existing.id });
+        return { user: existing, accessToken, refreshToken };
+      }
       throw new Error('EMAIL_EXISTS: An account with this email already exists');
+    }
+
+    if (data.phone) {
+      const cleanPhone = data.phone.replace(/[^0-9]/g, '');
+      if (cleanPhone.length >= 10) {
+        const existingPhone = await prisma.user.findFirst({
+          where: {
+            phone: {
+              contains: cleanPhone.slice(-10),
+            },
+          },
+        });
+        if (existingPhone) {
+          throw new Error('PHONE_EXISTS: An account with this phone number already exists');
+        }
+      }
     }
 
     const passwordHash = await bcrypt.hash(data.password, 10);

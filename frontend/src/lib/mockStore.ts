@@ -809,10 +809,24 @@ class MockDataStore {
     const db = this.getDb();
     const cleanEmail = data.email.trim().toLowerCase();
 
-    // Check if user already exists
+    // Check if email already registered
     const existing = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
     if (existing) {
-      throw new Error('EMAIL_EXISTS: An account with this Gmail address already exists. Please log in.');
+      throw new Error('An account with this Gmail address is already registered. Please log in.');
+    }
+
+    // Check if phone number already registered
+    const cleanPhone = (data.phone || '').replace(/[^0-9]/g, '');
+    if (cleanPhone && cleanPhone.length >= 10) {
+      const targetPhone = cleanPhone.slice(-10);
+      const existingPhone = db.users.find((u) => {
+        if (!u.phone) return false;
+        const uClean = u.phone.replace(/[^0-9]/g, '');
+        return uClean.length >= 10 && uClean.slice(-10) === targetPhone;
+      });
+      if (existingPhone) {
+        throw new Error('An account with this phone number is already registered. Please log in or use another number.');
+      }
     }
 
     // Generate 6-digit cryptographic OTP code
@@ -964,6 +978,27 @@ class MockDataStore {
 
   public createUser(userData: any) {
     const db = this.getDb();
+    if (userData.email) {
+      const cleanEmail = userData.email.toLowerCase().trim();
+      const existingEmail = db.users.find((u) => u.email.toLowerCase().trim() === cleanEmail);
+      if (existingEmail) {
+        return existingEmail;
+      }
+    }
+    if (userData.phone) {
+      const cleanPhone = userData.phone.replace(/[^0-9]/g, '');
+      if (cleanPhone.length >= 10) {
+        const targetPhone = cleanPhone.slice(-10);
+        const existingPhone = db.users.find((u) => {
+          if (!u.phone) return false;
+          const uClean = u.phone.replace(/[^0-9]/g, '');
+          return uClean.length >= 10 && uClean.slice(-10) === targetPhone;
+        });
+        if (existingPhone) {
+          throw new Error('An account with this phone number is already registered.');
+        }
+      }
+    }
     const newUser = {
       id: `usr_${Date.now()}`,
       name: userData.name,

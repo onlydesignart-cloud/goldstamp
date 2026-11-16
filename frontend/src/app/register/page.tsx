@@ -287,7 +287,18 @@ export default function CustomerRegisterPage() {
           {error && (
             <div className="bg-rose-50 text-rose-700 p-3 rounded-2xl text-xs flex items-start gap-2 border border-rose-200">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{error}</span>
+              <div className="flex-1 leading-relaxed">
+                <p>{error}</p>
+                {(error.includes('already registered') || error.includes('already exists')) && (
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center gap-1 font-bold text-rose-900 underline underline-offset-2 mt-1 hover:text-rose-950"
+                  >
+                    <span>Click here to Sign In instead</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                )}
+              </div>
             </div>
           )}
 

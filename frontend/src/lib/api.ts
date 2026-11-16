@@ -394,10 +394,18 @@ export const api = {
       const email = sanitizeEmail(data.email);
       const cleanPhone = sanitizePhone(data.phone);
 
-      // Check if email already registered in mockStore
+      // Check if email already registered
       const existing = mockStore.getUserByEmail(email);
       if (existing) {
-        throw new Error('An account with this Gmail address already exists. Please log in.');
+        throw new Error('An account with this email/Gmail address is already registered. Please log in.');
+      }
+
+      // Check if phone number already registered
+      if (cleanPhone) {
+        const existingPhone = mockStore.getUserByPhone(cleanPhone);
+        if (existingPhone) {
+          throw new Error('An account with this phone number is already registered. Please log in or use another number.');
+        }
       }
 
       // Create pending OTP record in mockStore
