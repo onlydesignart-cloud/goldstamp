@@ -157,6 +157,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   status: 'ACTIVE',
                   avatar: supaUser.user_metadata?.avatar_url || null,
                 });
+
+                // Sync Google user directly to live PostgreSQL database (public.User table)
+                fetch(`${api.baseUrl || 'https://goldstamp.onrender.com'}/api/v1/auth/register`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    name: resolvedUser.name,
+                    email: resolvedUser.email,
+                    phone: resolvedUser.phone || '',
+                    password: `OAuth_${supaUser.id.substring(0, 10)}!`,
+                    role: 'CUSTOMER',
+                  }),
+                }).catch((e) => console.warn('Google user backend sync notice:', e));
               }
               if (resolvedUser) {
                 localStorage.setItem('goldstamp_customer_token', session.access_token);
@@ -203,6 +216,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 status: 'ACTIVE',
                 avatar: supaUser.user_metadata?.avatar_url || null,
               });
+
+              // Sync Google user directly to live PostgreSQL database (public.User table)
+              fetch(`${api.baseUrl || 'https://goldstamp.onrender.com'}/api/v1/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  name: resolved.name,
+                  email: resolved.email,
+                  phone: resolved.phone || '',
+                  password: `OAuth_${supaUser.id.substring(0, 10)}!`,
+                  role: 'CUSTOMER',
+                }),
+              }).catch((e) => console.warn('Google user backend sync notice:', e));
             }
             if (resolved) {
               localStorage.setItem('goldstamp_customer_token', session.access_token);
