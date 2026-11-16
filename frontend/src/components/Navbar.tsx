@@ -215,7 +215,7 @@ export const Navbar: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <Link
                   href="/login"
                   className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 transition rounded-lg hover:bg-slate-100"
@@ -224,24 +224,8 @@ export const Navbar: React.FC = () => {
                 </Link>
 
                 <Link
-                  href="/register"
-                  className="px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition rounded-lg border border-emerald-200"
-                >
-                  Customer Sign Up
-                </Link>
-
-                <span className="text-slate-300 h-4 border-r border-slate-300 mx-1"></span>
-
-                <Link
-                  href="/client/login"
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 transition rounded-lg hover:bg-slate-100"
-                >
-                  Business Login
-                </Link>
-
-                <Link
                   href="/client/register"
-                  className="inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-950 hover:bg-slate-800 rounded-lg shadow-sm transition active:scale-95"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-950 hover:bg-slate-800 rounded-lg shadow-sm transition active:scale-95"
                 >
                   <span>Register Business</span>
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -353,39 +337,21 @@ export const Navbar: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <Link
-                    href="/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="text-center py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg"
-                  >
-                    Customer Login
-                  </Link>
-                  <Link
-                    href="/register"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="text-center py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg"
-                  >
-                    Customer Sign Up
-                  </Link>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Link
-                    href="/client/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="text-center py-2 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg"
-                  >
-                    Business Login
-                  </Link>
-                  <Link
-                    href="/client/register"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="text-center py-2 text-xs font-semibold text-white bg-slate-950 rounded-lg"
-                  >
-                    Register Business
-                  </Link>
-                </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-center py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition rounded-lg"
+                >
+                  Customer Login
+                </Link>
+                <Link
+                  href="/client/register"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-center py-2 text-xs font-semibold text-white bg-slate-950 hover:bg-slate-800 transition rounded-lg"
+                >
+                  Register Business
+                </Link>
               </div>
             )}
           </div>

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { api } from './api';
+import { api, API_BASE_URL } from './api';
 import { mockStore } from './mockStore';
 import { createClient } from '../utils/supabase/client';
 
@@ -159,7 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 });
 
                 // Sync Google user directly to live PostgreSQL database (public.User table)
-                fetch(`${api.baseUrl || 'https://goldstamp.onrender.com'}/api/v1/auth/register`, {
+                fetch(`${API_BASE_URL}/api/v1/auth/register`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -218,7 +218,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               });
 
               // Sync Google user directly to live PostgreSQL database (public.User table)
-              fetch(`${api.baseUrl || 'https://goldstamp.onrender.com'}/api/v1/auth/register`, {
+              fetch(`${API_BASE_URL}/api/v1/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
