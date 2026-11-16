@@ -7,7 +7,7 @@ import { AuthenticatedRequest } from '../../middlewares/auth.middleware';
 export class CampaignsController {
   async getByBusiness(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const businessId = req.params.businessId || (req.query.businessId as string);
+      const businessId = (req.params.businessId as string) || (req.query.businessId as string);
       if (!businessId) {
         sendError(res, 'BAD_REQUEST', 'businessId is required', 400);
         return;
@@ -21,7 +21,7 @@ export class CampaignsController {
 
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const campaign = await campaignsService.getById(id);
       sendSuccess(res, campaign, 'Campaign retrieved');
     } catch (err: any) {
@@ -53,7 +53,7 @@ export class CampaignsController {
 
   async updateStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { status } = req.body;
       const updated = await campaignsService.updateStatus(id, status, req.user!.userId);
       sendSuccess(res, updated, 'Campaign status updated');

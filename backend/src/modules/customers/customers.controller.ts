@@ -15,7 +15,7 @@ export class CustomersController {
 
   async joinProgram(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { businessId } = req.params;
+      const businessId = req.params.businessId as string;
       const membership = await customersService.joinProgram(req.user!.userId, businessId);
       sendSuccess(res, membership, 'Joined loyalty program successfully', 201);
     } catch (err: any) {

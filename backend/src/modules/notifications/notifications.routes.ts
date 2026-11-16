@@ -20,7 +20,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 router.patch('/:id/read', async (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const updated = await prisma.notification.updateMany({
     where: { id, userId: req.user!.userId },
     data: { isRead: true },

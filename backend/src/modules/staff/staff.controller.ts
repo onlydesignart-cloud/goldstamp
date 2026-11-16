@@ -43,7 +43,7 @@ export class StaffController {
 
   async toggleStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { staffId } = req.params;
+      const staffId = req.params.staffId as string;
       const updated = await staffService.toggleStaffStatus(staffId, req.user!.userId);
       sendSuccess(res, updated, 'Staff status updated');
     } catch (err) {

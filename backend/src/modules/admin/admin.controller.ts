@@ -27,7 +27,7 @@ export class AdminController {
 
   async getBusinessDetail(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const business = await adminService.getBusinessDetail(id);
       sendSuccess(res, business, 'Business detail retrieved');
     } catch (err: any) {
@@ -41,7 +41,7 @@ export class AdminController {
 
   async updateBusinessStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { status } = req.body;
       const updated = await adminService.setBusinessStatus(id, status, req.user!.userId);
       sendSuccess(res, updated, `Business status updated to ${status}`);
@@ -73,7 +73,7 @@ export class AdminController {
 
   async updateUserStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { status } = req.body;
       const updated = await adminService.setUserStatus(id, status, req.user!.userId);
       sendSuccess(res, updated, `User status updated to ${status}`);

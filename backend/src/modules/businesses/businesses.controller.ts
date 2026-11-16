@@ -28,7 +28,7 @@ export class BusinessesController {
 
   async getBySlug(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { slug } = req.params;
+      const slug = req.params.slug as string;
       const business = await businessesService.getBySlug(slug);
       sendSuccess(res, business, 'Business details retrieved');
     } catch (err: any) {
@@ -65,7 +65,7 @@ export class BusinessesController {
 
   async update(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const id = req.params.businessId || req.params.id;
+      const id = (req.params.businessId || req.params.id) as string;
       const validated = UpdateBusinessSchema.parse(req.body);
       const business = await businessesService.update(
         id,
@@ -81,7 +81,7 @@ export class BusinessesController {
 
   async updateStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { status } = req.body;
       const business = await businessesService.updateStatus(id, status, req.user!.userId);
       sendSuccess(res, business, `Business status updated to ${status}`);
@@ -92,7 +92,7 @@ export class BusinessesController {
 
   async getBranches(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const branches = await businessesService.getBranches(id);
       sendSuccess(res, branches, 'Branches retrieved');
     } catch (err) {
@@ -102,7 +102,7 @@ export class BusinessesController {
 
   async createBranch(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const branch = await businessesService.createBranch(id, req.body);
       sendSuccess(res, branch, 'Branch created successfully', 201);
     } catch (err) {

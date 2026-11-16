@@ -27,7 +27,7 @@ export class IndustriesController {
 
   async update(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const result = await industriesService.update(id, req.body, req.user!.userId);
       sendSuccess(res, result, 'Industry updated successfully');
     } catch (err) {
@@ -37,7 +37,7 @@ export class IndustriesController {
 
   async toggleActive(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const result = await industriesService.toggleActive(id, req.user!.userId);
       sendSuccess(res, result, 'Industry status updated');
     } catch (err: any) {
