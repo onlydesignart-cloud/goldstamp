@@ -64,7 +64,6 @@ export default function MerchantRegisterPage() {
   // OTP Verification State
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState('');
-  const [previewOtp, setPreviewOtp] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendSuccess, setResendSuccess] = useState<string | null>(null);
   const [verificationSuccess, setVerificationSuccess] = useState(false);
@@ -152,7 +151,6 @@ export default function MerchantRegisterPage() {
 
       if (res.success && res.data) {
         setSessionId(res.data.sessionId);
-        setPreviewOtp(res.data.previewOtp || null);
         setStep('verify');
         setResendCooldown(60);
       } else {
@@ -214,7 +212,6 @@ export default function MerchantRegisterPage() {
     try {
       const res = await api.resendMerchantOtp(sessionId);
       if (res.success && res.data) {
-        setPreviewOtp(res.data.otpCode || null);
         setResendCooldown(60);
         setResendSuccess('A fresh 6-digit verification code has been dispatched.');
       } else {

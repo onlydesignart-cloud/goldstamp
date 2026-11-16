@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/auth-context';
-import { api } from '../../lib/api';
+import { api, isDisposableEmail } from '../../lib/api';
 import { createClient } from '../../utils/supabase/client';
 import {
   Award,
@@ -47,7 +47,6 @@ export default function CustomerRegisterPage() {
   const [sessionId, setSessionId] = useState<string>('');
   const [otpCode, setOtpCode] = useState<string>('');
   const [securityHeaders, setSecurityHeaders] = useState<any>(null);
-  const [previewOtp, setPreviewOtp] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState<number>(60);
   const [verificationSuccess, setVerificationSuccess] = useState(false);
 
@@ -86,7 +85,12 @@ export default function CustomerRegisterPage() {
 
     const cleanEmail = formData.email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-      setError('Please enter a valid Gmail address (e.g. name@gmail.com).');
+      setError('Please enter a valid Gmail or email address (e.g. name@gmail.com).');
+      return;
+    }
+
+    if (isDisposableEmail(cleanEmail)) {
+      setError('Temporary or disposable email addresses are not permitted. Please provide an active email address.');
       return;
     }
 
@@ -119,7 +123,6 @@ export default function CustomerRegisterPage() {
       if (res.success && res.data) {
         setSessionId(res.data.sessionId);
         setSecurityHeaders(res.data.securityHeaders);
-        setPreviewOtp(res.data.previewOtp || null);
         setStep('verify');
         setResendCooldown(60);
       } else {
@@ -189,7 +192,6 @@ export default function CustomerRegisterPage() {
       const res = await api.resendCustomerOtp(sessionId);
       if (res.success && res.data) {
         setSecurityHeaders(res.data.securityHeaders);
-        setPreviewOtp(res.data.previewOtp || null);
         setResendCooldown(60);
         setOtpCode('');
       } else {

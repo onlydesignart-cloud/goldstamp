@@ -460,13 +460,31 @@ export const api = {
         throw new Error('Temporary or disposable email addresses are not permitted. Please provide an active, permanent business or personal email address.');
       }
 
-      // 2. Check if email already registered
+      // 2. Check if email already registered in local store or Supabase Postgres
       const existing = mockStore.getUserByEmail(email);
       if (existing) {
         throw new Error('An account with this email address is already registered. Please sign in to your Merchant Console.');
       }
 
-      // 3. Check if phone number already registered
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+          const { data: dbUsers } = await supabase.from('User').select('id').eq('email', email.toLowerCase()).limit(1);
+          if (dbUsers && dbUsers.length > 0) {
+            throw new Error('An account with this email address is already registered. Please sign in to your Merchant Console.');
+          }
+          if (cleanPhone) {
+            const { data: dbPhones } = await supabase.from('User').select('id').eq('phone', cleanPhone).limit(1);
+            if (dbPhones && dbPhones.length > 0) {
+              throw new Error('An account with this phone number is already registered. Please sign in or use another number.');
+            }
+          }
+        } catch (dbCheckErr: any) {
+          if (dbCheckErr.message?.includes('already registered')) throw dbCheckErr;
+        }
+      }
+
+      // 3. Check if phone number already registered in local store
       if (cleanPhone) {
         const existingPhone = mockStore.getUserByPhone(cleanPhone);
         if (existingPhone) {
@@ -485,20 +503,25 @@ export const api = {
         password: data.password,
       });
 
-      // Dispatch real email with authentication code via Supabase mailer
+      // 5. Dispatch real verification email with authentication code via Supabase
       if (typeof window !== 'undefined') {
         try {
           const supabase = createClient();
-          await supabase.auth.signInWithOtp({
+          const { error: otpErr } = await supabase.auth.signInWithOtp({
             email,
             options: {
-              shouldCreateUser: false,
+              shouldCreateUser: true,
             },
-          }).catch((err) => {
-            console.warn('Supabase merchant OTP dispatch notice:', err);
           });
-        } catch (err) {
+          if (otpErr) {
+            console.warn('Supabase merchant OTP dispatch notice:', otpErr);
+            if (otpErr.message?.toLowerCase().includes('rate limit') || (otpErr as any).status === 429) {
+              throw new Error('Email sending rate limit reached. Please wait 60 seconds before requesting a code.');
+            }
+          }
+        } catch (err: any) {
           console.warn('Supabase client dispatch note:', err);
+          if (err.message?.includes('rate limit')) throw err;
         }
       }
 
@@ -518,7 +541,33 @@ export const api = {
   }): Promise<ApiResponse<any>> => {
     return asyncWrap(async () => {
       const { sessionId, code } = payload;
-      const verified = mockStore.verifyMerchantOtp(sessionId, code);
+      const cleanCode = code.trim();
+
+      const session = mockStore.getMerchantOtpSession(sessionId);
+      if (!session) {
+        throw new Error('INVALID_SESSION: Verification session not found or expired. Please register again.');
+      }
+
+      // Verify with Supabase Auth first
+      let supabaseVerified = false;
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+          const { data: supaAuth, error: supaErr } = await supabase.auth.verifyOtp({
+            email: session.email,
+            token: cleanCode,
+            type: 'email',
+          });
+          if (!supaErr && supaAuth?.user) {
+            supabaseVerified = true;
+          }
+        } catch (e) {
+          console.warn('Supabase verifyOtp notice:', e);
+        }
+      }
+
+      // Complete verification in mock store
+      const verified = mockStore.verifyMerchantOtp(sessionId, cleanCode, supabaseVerified);
 
       // Register into live PostgreSQL DB on Render backend
       let backendData: any = null;
@@ -573,7 +622,7 @@ export const api = {
           name: verified.user.name,
           email: verified.user.email.toLowerCase(),
           phone: verified.user.phone || null,
-          passwordHash: verified.user.password || 'Merchant_Pass_123!',
+          passwordHash: verified.user.password || '$2b$10$defaultHashForVerifiedMerchantPass!',
           role: 'BUSINESS_OWNER',
           status: 'ACTIVE',
           updatedAt: new Date().toISOString(),
@@ -616,9 +665,31 @@ export const api = {
 
   resendMerchantOtp: async (sessionId: string): Promise<ApiResponse<any>> => {
     return asyncWrap(async () => {
+      const session = mockStore.getMerchantOtpSession(sessionId);
       const res = mockStore.resendMerchantOtp(sessionId);
+
+      if (typeof window !== 'undefined' && session?.email) {
+        try {
+          const supabase = createClient();
+          const { error: otpErr } = await supabase.auth.signInWithOtp({
+            email: session.email,
+            options: {
+              shouldCreateUser: true,
+            },
+          });
+          if (otpErr) {
+            console.warn('Supabase resend OTP notice:', otpErr);
+            if (otpErr.message?.toLowerCase().includes('rate limit') || (otpErr as any).status === 429) {
+              throw new Error('Email sending rate limit reached. Please wait 60 seconds before requesting a code.');
+            }
+          }
+        } catch (err: any) {
+          if (err.message?.includes('rate limit')) throw err;
+        }
+      }
+
       return res;
-    }, 'Fresh verification code sent');
+    }, 'Fresh verification code sent to your email');
   },
 
   sendCustomerOtp: async (data: {
@@ -631,13 +702,36 @@ export const api = {
       const email = sanitizeEmail(data.email);
       const cleanPhone = sanitizePhone(data.phone);
 
-      // Check if email already registered
+      // 1. Strict disposable email check
+      if (isDisposableEmail(email)) {
+        throw new Error('Temporary or disposable email addresses are not permitted. Please provide an active email address.');
+      }
+
+      // 2. Check if email already registered in local store or Supabase Postgres
       const existing = mockStore.getUserByEmail(email);
       if (existing) {
         throw new Error('An account with this email/Gmail address is already registered. Please log in.');
       }
 
-      // Check if phone number already registered
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+          const { data: dbUsers } = await supabase.from('User').select('id').eq('email', email.toLowerCase()).limit(1);
+          if (dbUsers && dbUsers.length > 0) {
+            throw new Error('An account with this email/Gmail address is already registered. Please log in.');
+          }
+          if (cleanPhone) {
+            const { data: dbPhones } = await supabase.from('User').select('id').eq('phone', cleanPhone).limit(1);
+            if (dbPhones && dbPhones.length > 0) {
+              throw new Error('An account with this phone number is already registered. Please log in or use another number.');
+            }
+          }
+        } catch (dbCheckErr: any) {
+          if (dbCheckErr.message?.includes('already registered')) throw dbCheckErr;
+        }
+      }
+
+      // 3. Check if phone number already registered in local store
       if (cleanPhone) {
         const existingPhone = mockStore.getUserByPhone(cleanPhone);
         if (existingPhone) {
@@ -645,7 +739,7 @@ export const api = {
         }
       }
 
-      // Create pending OTP record in mockStore
+      // 4. Create pending OTP record in mockStore
       const session = mockStore.createCustomerOtp({
         name: sanitizeText(data.name, 60),
         email,
@@ -653,20 +747,25 @@ export const api = {
         password: data.password,
       });
 
-      // Attempt to dispatch Supabase OTP email if configured
+      // 5. Attempt to dispatch Supabase OTP email
       if (typeof window !== 'undefined') {
         try {
           const supabase = createClient();
-          await supabase.auth.signInWithOtp({
+          const { error: otpErr } = await supabase.auth.signInWithOtp({
             email,
             options: {
-              shouldCreateUser: false,
+              shouldCreateUser: true,
             },
-          }).catch((err) => {
-            console.warn('Supabase email OTP dispatch notice:', err);
           });
-        } catch (err) {
+          if (otpErr) {
+            console.warn('Supabase email OTP dispatch notice:', otpErr);
+            if (otpErr.message?.toLowerCase().includes('rate limit') || (otpErr as any).status === 429) {
+              throw new Error('Email sending rate limit reached. Please wait 60 seconds before requesting a code.');
+            }
+          }
+        } catch (err: any) {
           console.warn('Supabase client note:', err);
+          if (err.message?.includes('rate limit')) throw err;
         }
       }
 
@@ -680,7 +779,7 @@ export const api = {
         email: session.email,
         phone: session.phone,
         expiresAt: session.expiresAt,
-        previewOtp: session.otpCode,
+        sender: 'GoldStamp Security',
         securityHeaders: {
           'X-Verification-Proof': signature,
           'X-Client-Nonce': nonce,
@@ -701,6 +800,7 @@ export const api = {
   }): Promise<ApiResponse<any>> => {
     return asyncWrap(async () => {
       const { sessionId, code, securityProof } = payload;
+      const cleanCode = code.trim();
 
       // Anti-tamper & anti-bypass validation
       if (securityProof) {
@@ -714,8 +814,31 @@ export const api = {
         }
       }
 
+      const session = mockStore.getCustomerOtpSession(sessionId);
+      if (!session) {
+        throw new Error('INVALID_SESSION: Verification session not found or expired. Please sign up again.');
+      }
+
+      // Verify with Supabase Auth first
+      let supabaseVerified = false;
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+          const { data: supaAuth, error: supaErr } = await supabase.auth.verifyOtp({
+            email: session.email,
+            token: cleanCode,
+            type: 'email',
+          });
+          if (!supaErr && supaAuth?.user) {
+            supabaseVerified = true;
+          }
+        } catch (e) {
+          console.warn('Supabase customer verifyOtp notice:', e);
+        }
+      }
+
       // Verify OTP code in store (enforces max attempts and expiration)
-      const verified = mockStore.verifyCustomerOtp(sessionId, code);
+      const verified = mockStore.verifyCustomerOtp(sessionId, cleanCode, supabaseVerified);
 
       // Register directly in live PostgreSQL DB via Render Backend
       let backendData: any = null;
@@ -755,7 +878,7 @@ export const api = {
           name: verified.user.name,
           email: verified.user.email.toLowerCase(),
           phone: verified.user.phone || null,
-          passwordHash: verified.user.password || 'Customer_Pass_123!',
+          passwordHash: verified.user.password || '$2b$10$defaultHashForVerifiedCustomerPass!',
           role: 'CUSTOMER',
           status: 'ACTIVE',
           updatedAt: new Date().toISOString(),
@@ -784,21 +907,27 @@ export const api = {
 
   resendCustomerOtp: async (sessionId: string): Promise<ApiResponse<any>> => {
     return asyncWrap(async () => {
+      const session = mockStore.getCustomerOtpSession(sessionId);
       const res = mockStore.resendCustomerOtp(sessionId);
 
-      if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined' && session?.email) {
         try {
           const supabase = createClient();
-          await supabase.auth.signInWithOtp({
-            email: res.email,
+          const { error: otpErr } = await supabase.auth.signInWithOtp({
+            email: session.email,
             options: {
-              shouldCreateUser: false,
+              shouldCreateUser: true,
             },
-          }).catch((err) => {
-            console.warn('Supabase resend OTP note:', err);
           });
-        } catch (err) {
+          if (otpErr) {
+            console.warn('Supabase resend OTP note:', otpErr);
+            if (otpErr.message?.toLowerCase().includes('rate limit') || (otpErr as any).status === 429) {
+              throw new Error('Email sending rate limit reached. Please wait 60 seconds before requesting a code.');
+            }
+          }
+        } catch (err: any) {
           console.warn('Supabase client error:', err);
+          if (err.message?.includes('rate limit')) throw err;
         }
       }
 
@@ -810,14 +939,14 @@ export const api = {
         sessionId,
         email: res.email,
         expiresAt: res.expiresAt,
-        previewOtp: res.otpCode,
+        sender: 'GoldStamp Security',
         securityHeaders: {
           'X-Verification-Proof': signature,
           'X-Client-Nonce': nonce,
           'X-Timestamp': timestamp.toString(),
         },
       };
-    }, 'New verification code sent');
+    }, 'Fresh verification code sent to your email');
   },
 
   requestPasswordReset: async (email: string): Promise<ApiResponse<any>> => {

@@ -832,7 +832,12 @@ class MockDataStore {
     };
   }
 
-  public verifyMerchantOtp(sessionId: string, code: string) {
+  public getMerchantOtpSession(sessionId: string) {
+    const db = this.getDb();
+    return (db.merchantOtps || []).find((o: any) => o.verificationSessionId === sessionId) || null;
+  }
+
+  public verifyMerchantOtp(sessionId: string, code: string, bypassCodeCheck = false) {
     const db = this.getDb();
     const record = (db.merchantOtps || []).find((o: any) => o.verificationSessionId === sessionId);
 
@@ -848,7 +853,7 @@ class MockDataStore {
       throw new Error('MAX_ATTEMPTS_EXCEEDED: Too many incorrect attempts. Please request a new code.');
     }
 
-    if (record.otpCode !== code.trim()) {
+    if (!bypassCodeCheck && record.otpCode !== code.trim()) {
       record.attempts += 1;
       this.saveDb(db);
       const remaining = record.maxAttempts - record.attempts;
@@ -1074,7 +1079,12 @@ class MockDataStore {
     };
   }
 
-  public verifyCustomerOtp(sessionId: string, code: string) {
+  public getCustomerOtpSession(sessionId: string) {
+    const db = this.getDb();
+    return (db.customerOtps || []).find((o: any) => o.verificationSessionId === sessionId) || null;
+  }
+
+  public verifyCustomerOtp(sessionId: string, code: string, bypassCodeCheck = false) {
     const db = this.getDb();
     const record = (db.customerOtps || []).find((o) => o.verificationSessionId === sessionId);
 
@@ -1090,7 +1100,7 @@ class MockDataStore {
       throw new Error('MAX_ATTEMPTS_EXCEEDED: Too many incorrect attempts. Please request a new verification code.');
     }
 
-    if (record.otpCode !== code.trim()) {
+    if (!bypassCodeCheck && record.otpCode !== code.trim()) {
       record.attempts += 1;
       this.saveDb(db);
       const remaining = record.maxAttempts - record.attempts;
