@@ -140,9 +140,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // Check live Supabase Auth session (e.g. after Google OAuth redirect)
-        if (!resolvedUser && typeof window !== 'undefined') {
+        if (typeof window !== 'undefined') {
           try {
             const supabase = createClient();
+
+            // Direct PKCE exchange fallback if code is in the current URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const authCode = urlParams.get('code');
+            if (authCode) {
+              try {
+                const { data: exData } = await supabase.auth.exchangeCodeForSession(authCode);
+                if (exData?.session) {
+                  urlParams.delete('code');
+                  const cleanQuery = urlParams.toString();
+                  const cleanUrl = window.location.pathname + (cleanQuery ? `?${cleanQuery}` : '');
+                  window.history.replaceState({}, document.title, cleanUrl);
+                }
+              } catch (exErr) {
+                console.warn('Direct code exchange notice:', exErr);
+              }
+            }
+
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
               const supaUser = session.user;
@@ -157,6 +175,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   status: 'ACTIVE',
                   avatar: supaUser.user_metadata?.avatar_url || null,
                 });
+              }
+
+              if (resolvedUser) {
+                localStorage.setItem('goldstamp_customer_token', session.access_token);
+                localStorage.setItem('goldstamp_customer_user', JSON.stringify(resolvedUser));
+                localStorage.setItem('goldstamp_user', JSON.stringify(resolvedUser));
+                localStorage.setItem('goldstamp_token', session.access_token);
 
                 // Sync Google user directly to live PostgreSQL database (public.User table)
                 fetch(`${API_BASE_URL}/api/v1/auth/register`, {
@@ -170,12 +195,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     role: 'CUSTOMER',
                   }),
                 }).catch((e) => console.warn('Google user backend sync notice:', e));
-              }
-              if (resolvedUser) {
-                localStorage.setItem('goldstamp_customer_token', session.access_token);
-                localStorage.setItem('goldstamp_customer_user', JSON.stringify(resolvedUser));
-                localStorage.setItem('goldstamp_user', JSON.stringify(resolvedUser));
-                localStorage.setItem('goldstamp_token', session.access_token);
               }
             }
           } catch (supaErr) {

@@ -197,7 +197,7 @@ export default function CustomerRegisterPage() {
     setError(null);
     try {
       const supabase = createClient();
-      const redirectTo = `${window.location.origin}/loyalty`;
+      const redirectTo = `${window.location.origin}/auth/callback?next=/loyalty`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
