@@ -584,7 +584,30 @@ class MockDataStore {
     // Check if user already exists and is active
     const existingActive = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
     if (existingActive) {
-      throw new Error('EMAIL_EXISTS: An account with this email address is already registered and verified.');
+      throw new Error('An account with this email address is already registered. Please sign in.');
+    }
+
+    // Check if phone number is already registered
+    if (data.phone) {
+      const cleanPhone = data.phone.replace(/[^0-9]/g, '');
+      if (cleanPhone.length >= 10) {
+        const targetPhone = cleanPhone.slice(-10);
+        const existingPhone = db.users.find((u) => {
+          if (!u.phone) return false;
+          const uClean = u.phone.replace(/[^0-9]/g, '');
+          return uClean.length >= 10 && uClean.slice(-10) === targetPhone;
+        });
+        if (existingPhone) {
+          throw new Error('An account with this phone number is already registered. Please sign in or use another number.');
+        }
+      }
+    }
+
+    // Check if business with same name already registered
+    const cleanBName = data.businessName.trim().toLowerCase();
+    const existingBusiness = (db.businesses || []).find((b) => b.name?.toLowerCase() === cleanBName);
+    if (existingBusiness) {
+      throw new Error('A business with this name is already registered. Please use another name.');
     }
 
     // Generate secure verification token
