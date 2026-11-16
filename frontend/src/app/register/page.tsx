@@ -521,19 +521,6 @@ export default function CustomerRegisterPage() {
                   </div>
                 </div>
 
-                {previewOtp && (
-                  <div className="bg-slate-100 rounded-xl p-2.5 border border-slate-200 flex items-center justify-between text-xs text-slate-700">
-                    <span className="text-[11px] text-slate-500 font-medium">Testing Code Preview:</span>
-                    <button
-                      type="button"
-                      onClick={() => setOtpCode(previewOtp)}
-                      className="font-mono font-bold text-emerald-700 hover:underline"
-                    >
-                      {previewOtp} (Click to Fill)
-                    </button>
-                  </div>
-                )}
-
                 <button
                   type="submit"
                   disabled={loading || otpCode.length !== 6 || verificationSuccess}

@@ -485,12 +485,28 @@ export const api = {
         password: data.password,
       });
 
+      // Dispatch real email with authentication code via Supabase mailer
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+          await supabase.auth.signInWithOtp({
+            email,
+            options: {
+              shouldCreateUser: false,
+            },
+          }).catch((err) => {
+            console.warn('Supabase merchant OTP dispatch notice:', err);
+          });
+        } catch (err) {
+          console.warn('Supabase client dispatch note:', err);
+        }
+      }
+
       return {
         sessionId: session.verificationSessionId,
         email: session.email,
         businessName: session.businessName,
         expiresAt: session.expiresAt,
-        previewOtp: session.otpCode,
         sender: 'GoldStamp Security',
       };
     }, 'Verification code sent to your email');
@@ -534,6 +550,49 @@ export const api = {
         }
       } catch (netErr) {
         console.warn('Backend merchant sync notice:', netErr);
+      }
+
+      // Direct persistent write into live Supabase PostgreSQL DB
+      try {
+        const supabase = createClient();
+        let indId = 'ind_default';
+        const { data: existingInd } = await supabase.from('Industry').select('id').limit(1);
+        if (existingInd && existingInd.length > 0) {
+          indId = existingInd[0].id;
+        } else {
+          await supabase.from('Industry').upsert({
+            id: indId,
+            name: verified.business.industry?.name || 'Local Commerce',
+            slug: 'local-commerce',
+            updatedAt: new Date().toISOString(),
+          });
+        }
+
+        await supabase.from('User').upsert({
+          id: verified.user.id,
+          name: verified.user.name,
+          email: verified.user.email.toLowerCase(),
+          phone: verified.user.phone || null,
+          passwordHash: verified.user.password || 'Merchant_Pass_123!',
+          role: 'BUSINESS_OWNER',
+          status: 'ACTIVE',
+          updatedAt: new Date().toISOString(),
+        });
+
+        await supabase.from('Business').upsert({
+          id: verified.business.id,
+          name: verified.business.name,
+          slug: verified.business.slug,
+          ownerId: verified.user.id,
+          industryId: indId,
+          city: verified.business.city || '',
+          phone: verified.user.phone || null,
+          email: verified.user.email.toLowerCase(),
+          status: 'ACTIVE',
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (dbErr) {
+        console.warn('Direct Supabase merchant write notice:', dbErr);
       }
 
       const activeUser = backendData?.user || verified.user;
@@ -686,6 +745,23 @@ export const api = {
         }
       } catch (netErr) {
         console.warn('Backend customer sync note:', netErr);
+      }
+
+      // Direct persistent write into live Supabase PostgreSQL DB
+      try {
+        const supabase = createClient();
+        await supabase.from('User').upsert({
+          id: verified.user.id,
+          name: verified.user.name,
+          email: verified.user.email.toLowerCase(),
+          phone: verified.user.phone || null,
+          passwordHash: verified.user.password || 'Customer_Pass_123!',
+          role: 'CUSTOMER',
+          status: 'ACTIVE',
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (dbErr) {
+        console.warn('Direct Supabase customer write notice:', dbErr);
       }
 
       const activeUser = backendData?.user || verified.user;

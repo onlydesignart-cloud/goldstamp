@@ -480,16 +480,6 @@ export default function MerchantRegisterPage() {
               </p>
             </div>
 
-            {/* Test Mode Preview Chip */}
-            {previewOtp && (
-              <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-3 text-amber-900 text-xs flex items-center justify-between">
-                <span className="font-medium">Verification Code (Test Mode):</span>
-                <span className="font-mono font-bold tracking-widest text-sm bg-white px-3 py-1 rounded-lg border border-amber-300 shadow-xs">
-                  {previewOtp}
-                </span>
-              </div>
-            )}
-
             <div>
               <label className="text-xs font-semibold text-slate-700 block mb-2 text-center">
                 Enter 6-Digit Authentication Code
