@@ -76,18 +76,8 @@ export const ClientSidebar: React.FC = () => {
 
           {user && (
             <div className="text-[11px] text-slate-500 truncate mt-0.5 font-medium">
-              Signed in: {user.name}
+              Owner: <span className="font-semibold text-slate-700">{user.name}</span>
             </div>
-          )}
-
-          {business?.slug && (
-            <Link
-              href={`/business/${business.slug}`}
-              target="_blank"
-              className="text-[11px] text-emerald-600 hover:text-emerald-700 flex items-center gap-1 mt-1.5 font-medium"
-            >
-              View Public Page <ExternalLink className="w-3 h-3" />
-            </Link>
           )}
         </div>
 

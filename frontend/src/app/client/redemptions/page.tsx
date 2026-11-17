@@ -13,8 +13,19 @@ export default function ClientRedemptionsPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [recentRedemptions, setRecentRedemptions] = useState<any[]>([]);
 
+  const resolveBizId = () => {
+    let targetBizId = business?.id;
+    if (!targetBizId && typeof window !== 'undefined') {
+      try {
+        const storedBiz = localStorage.getItem('goldstamp_merchant_business');
+        if (storedBiz) targetBizId = JSON.parse(storedBiz).id;
+      } catch {}
+    }
+    return targetBizId || 'biz_test';
+  };
+
   const loadRecent = async () => {
-    const targetBizId = business?.id || 'biz_smashzone';
+    const targetBizId = resolveBizId();
     try {
       const res = await api.getBusinessRedemptions(targetBizId);
       if (res.success && res.data) {
@@ -33,7 +44,7 @@ export default function ClientRedemptionsPage() {
     e.preventDefault();
     if (!code.trim()) return;
 
-    const targetBizId = business?.id || 'biz_smashzone';
+    const targetBizId = resolveBizId();
     setLoading(true);
     setSuccessMsg(null);
     setErrorMsg(null);
@@ -55,7 +66,7 @@ export default function ClientRedemptionsPage() {
   };
 
   const handleQuickRedeem = async (voucherCode: string) => {
-    const targetBizId = business?.id || 'biz_smashzone';
+    const targetBizId = resolveBizId();
     setLoading(true);
     setSuccessMsg(null);
     setErrorMsg(null);

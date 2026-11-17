@@ -118,13 +118,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (typeof window !== 'undefined') {
             try {
               const supabase = createClient();
+              
+              // 1. Fetch latest user name and profile directly from Supabase User table
+              const { data: dbUser } = await supabase.from('User').select('*').eq('id', currentMerchant.id).limit(1);
+              if (dbUser && dbUser.length > 0) {
+                currentMerchant = { ...currentMerchant, ...dbUser[0] };
+                setUser(currentMerchant);
+                localStorage.setItem('goldstamp_merchant_user', JSON.stringify(currentMerchant));
+              }
+
+              // 2. Fetch latest business from Supabase Business table
               const { data: dbBiz } = await supabase.from('Business').select('*').eq('ownerId', currentMerchant.id).limit(1);
               if (dbBiz && dbBiz.length > 0) {
                 biz = { ...biz, ...dbBiz[0] };
                 localStorage.setItem('goldstamp_merchant_business', JSON.stringify(biz));
               }
             } catch (supaErr) {
-              console.warn('Supabase business fetch note:', supaErr);
+              console.warn('Supabase merchant profile sync note:', supaErr);
             }
           }
 

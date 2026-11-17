@@ -1626,15 +1626,31 @@ export const api = {
     if (typeof window !== 'undefined') {
       try {
         const supabase = createClient();
-        const { data: dbRdm, error } = await supabase
-          .from('RewardRedemption')
-          .select('*, reward:Reward(*), user:User(*)')
-          .eq('businessId', businessId);
+        let query = supabase.from('RewardRedemption').select('*, reward:Reward(*), user:User(*)');
+        if (businessId && businessId !== 'biz_smashzone') {
+          query = query.eq('businessId', businessId);
+        }
+        const { data: dbRdm, error } = await query.order('claimedAt', { ascending: false });
 
         if (!error && dbRdm && dbRdm.length > 0) {
+          const formatted = dbRdm.map((r: any) => ({
+            id: r.id,
+            rewardId: r.rewardId,
+            userId: r.userId,
+            businessId: r.businessId,
+            voucherCode: r.code,
+            code: r.code,
+            status: r.status,
+            claimedAt: r.claimedAt,
+            redeemedAt: r.redeemedAt,
+            rewardTitle: r.reward?.title || 'Loyalty Reward',
+            customerName: r.user?.name || 'Customer',
+            customerEmail: r.user?.email || '',
+            customerPhone: r.user?.phone || '',
+          }));
           return {
             success: true,
-            data: dbRdm,
+            data: formatted,
           };
         }
       } catch (e) {
@@ -1647,21 +1663,43 @@ export const api = {
   verifyRedemption: async (businessId: string, code: string): Promise<ApiResponse<any>> => {
     return asyncWrap(async () => {
       const cleanCode = sanitizeVoucherCode(code);
+      let supaRedemption: any = null;
+
       if (typeof window !== 'undefined') {
         try {
           const supabase = createClient();
-          await supabase
+          const merchantUser = localStorage.getItem('goldstamp_merchant_user');
+          const verifierId = merchantUser ? safeJsonParse<any>(merchantUser, null)?.id : null;
+
+          const { data: updated, error } = await supabase
             .from('RewardRedemption')
             .update({
               status: 'REDEEMED',
               redeemedAt: new Date().toISOString(),
+              verifiedBy: verifierId || null,
             })
-            .eq('code', cleanCode);
+            .eq('code', cleanCode)
+            .select('*, reward:Reward(*), user:User(*)')
+            .maybeSingle();
+
+          if (!error && updated) {
+            supaRedemption = updated;
+          }
         } catch (e) {
           console.warn('Supabase verifyRedemption note:', e);
         }
       }
-      return mockStore.verifyRedemption(businessId, cleanCode);
+
+      const mockRes = mockStore.verifyRedemption(businessId, cleanCode);
+      if (supaRedemption) {
+        return {
+          ...mockRes,
+          rewardTitle: supaRedemption.reward?.title || mockRes.rewardTitle,
+          customerName: supaRedemption.user?.name || mockRes.customerName,
+          status: 'REDEEMED',
+        };
+      }
+      return mockRes;
     }, 'Reward redeemed successfully');
   },
 

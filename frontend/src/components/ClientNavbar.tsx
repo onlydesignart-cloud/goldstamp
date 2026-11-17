@@ -30,34 +30,38 @@ export const ClientNavbar: React.FC = () => {
     <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-40 transition-colors shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
-          {/* Brand & Active Venue Badge */}
-          <div className="flex items-center gap-4 sm:gap-6">
-            <Link href="/client/dashboard" className="flex items-center gap-3 group py-1">
+          {/* Brand & Owner / Venue Identity on Top Left */}
+          <div className="flex items-center gap-3 sm:gap-5">
+            <Link href="/client/dashboard" className="flex items-center gap-2.5 group py-1 shrink-0">
               <img
                 src="/images/logo-dark.png"
                 alt="GoldStamp"
                 className="h-8 w-auto object-contain hover:opacity-95 transition-opacity"
               />
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wider hidden sm:inline-block">
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wider hidden md:inline-block">
                 Merchant Hub
               </span>
             </Link>
 
-            {/* Current Active Venue Display */}
-            {business && (
-              <div className="hidden lg:flex items-center gap-2 pl-4 border-l border-slate-800 text-xs">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span className="font-semibold text-slate-200">{business.name}</span>
-                <Link
-                  href={`/business/${business.slug}`}
-                  target="_blank"
-                  className="text-slate-400 hover:text-emerald-400 flex items-center gap-1 transition"
-                  title="View Public Venue Page"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                </Link>
+            {/* Top-Left Owner Name & Venue Display (No External Redirect) */}
+            <div className="flex items-center gap-2.5 pl-3 sm:pl-4 border-l border-slate-800">
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+                  <span className="text-xs sm:text-sm font-extrabold text-white tracking-tight">
+                    {user?.name || 'Business Owner'}
+                  </span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded uppercase tracking-wider">
+                    Owner
+                  </span>
+                </div>
+                {business?.name && (
+                  <span className="text-[11px] font-medium text-slate-400 truncate max-w-[150px] sm:max-w-[220px]">
+                    {business.name}
+                  </span>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           {/* Quick Counter Kiosk & Actions */}
