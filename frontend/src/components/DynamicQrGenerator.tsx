@@ -190,6 +190,18 @@ export const DynamicQrGenerator: React.FC<DynamicQrGeneratorProps> = ({
           </div>
         )}
 
+        {/* Counter Check-In Code Display */}
+        {qrData?.token && (
+          <div className="mt-3 text-center">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block">
+              Counter Check-In Code:
+            </span>
+            <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-800 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700 inline-block mt-0.5 select-all">
+              {qrData.token}
+            </span>
+          </div>
+        )}
+
         {/* Security rotation badge */}
         <div className="mt-4 flex items-center gap-2 text-xs font-semibold">
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[11px] font-bold">
