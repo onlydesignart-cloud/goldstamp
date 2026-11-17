@@ -43,13 +43,19 @@ export const ClientNavbar: React.FC = () => {
               </span>
             </Link>
 
-            {/* Current Active Venue Display (Clean text - No external redirect) */}
-            {business && (
-              <div className="hidden lg:flex items-center gap-2 pl-4 border-l border-slate-800 text-xs">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span className="font-semibold text-slate-200">{business.name}</span>
+            {/* Top Left Corner: Business Owner Name + Business Venue Name */}
+            <div className="hidden sm:flex flex-col justify-center pl-4 border-l border-slate-800 text-xs">
+              <div className="flex items-center gap-1.5 font-bold text-white tracking-wide">
+                <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+                <span className="text-slate-100 font-semibold">{user?.name || 'Business Owner'}</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase">
+                  {user?.role === 'BUSINESS_STAFF' ? 'Staff' : 'Owner'}
+                </span>
               </div>
-            )}
+              <span className="text-[11px] text-slate-400 font-medium pl-3.5 leading-tight">
+                {business?.name || 'Active Venue'}
+              </span>
+            </div>
           </div>
 
           {/* Quick Counter Kiosk & Actions */}
@@ -70,27 +76,15 @@ export const ClientNavbar: React.FC = () => {
               <span>New Campaign</span>
             </Link>
 
-            {/* Merchant Identity & Signout */}
-            <div className="flex items-center gap-3 pl-3 sm:pl-4 border-l border-slate-800">
-              <div className="text-right hidden sm:block">
-                <div className="text-xs font-semibold text-white">
-                  {user ? user.name : 'Business Owner'}
-                </div>
-                <div className="text-[10px] font-medium flex items-center justify-end gap-1">
-                  {user?.role === 'BUSINESS_STAFF' ? (
-                    <span className="text-amber-400 font-bold">Counter Staff</span>
-                  ) : (
-                    <span className="text-emerald-400">Business Owner</span>
-                  )}
-                </div>
-              </div>
-
+            {/* Signout Button only (Owner name is cleanly placed at top left) */}
+            <div className="flex items-center pl-3 sm:pl-4 border-l border-slate-800">
               <button
                 onClick={logout}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition text-xs font-medium"
                 title="Sign Out of Merchant Hub"
               >
                 <LogOut className="w-4 h-4" />
+                <span className="hidden md:inline">Logout</span>
               </button>
             </div>
           </div>
