@@ -194,9 +194,9 @@ export const DynamicQrGenerator: React.FC<DynamicQrGeneratorProps> = ({
         {qrData?.token && (
           <div className="mt-3 text-center">
             <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block">
-              Counter Check-In Code:
+              6-Digit Counter Code:
             </span>
-            <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-800 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700 inline-block mt-0.5 select-all">
+            <span className="font-mono text-base font-extrabold tracking-widest text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-4 py-1 rounded-xl border border-emerald-200 dark:border-emerald-800 inline-block mt-1 select-all shadow-sm">
               {qrData.token}
             </span>
           </div>

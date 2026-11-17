@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import confetti from 'canvas-confetti';
@@ -18,6 +18,9 @@ import {
   MessageSquare,
   Mail,
   Smartphone,
+  Camera,
+  CameraOff,
+  RefreshCw,
 } from 'lucide-react';
 
 function CheckInContent() {
@@ -30,6 +33,11 @@ function CheckInContent() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // In-app live camera state
+  const scannerRef = useRef<any>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
   // If URL has token on mount and user is logged in, auto process!
   useEffect(() => {
     if (tokenFromUrl && user) {
@@ -37,11 +45,100 @@ function CheckInContent() {
     }
   }, [tokenFromUrl, user]);
 
+  // Initialize In-App Camera Scanner on mount if no result and no token in URL
+  useEffect(() => {
+    if (result || tokenFromUrl) return;
+
+    let isMounted = true;
+
+    const initCameraScanner = async () => {
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        if (!isMounted) return;
+
+        const scannerId = 'qr-reader';
+        const scannerElement = document.getElementById(scannerId);
+        if (!scannerElement) return;
+
+        const html5QrCode = new Html5Qrcode(scannerId);
+        scannerRef.current = html5QrCode;
+
+        await html5QrCode.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: { width: 220, height: 220 },
+            aspectRatio: 1.0,
+          },
+          (decodedText: string) => {
+            // QR Scanned Successfully!
+            let token = decodedText.trim();
+            try {
+              if (decodedText.includes('token=')) {
+                const url = new URL(decodedText);
+                token = url.searchParams.get('token') || decodedText;
+              }
+            } catch {}
+
+            // Stop camera immediately upon detection
+            if (scannerRef.current) {
+              scannerRef.current.stop().catch(() => {}).then(() => {
+                scannerRef.current = null;
+                setCameraActive(false);
+                handleCheckIn(token);
+              });
+            } else {
+              handleCheckIn(token);
+            }
+          },
+          () => {
+            // Frame scan tick (non-blocking)
+          }
+        );
+
+        if (isMounted) {
+          setCameraActive(true);
+          setCameraError(null);
+        }
+      } catch (err: any) {
+        console.warn('Camera scanner initialization notice:', err);
+        if (isMounted) {
+          setCameraActive(false);
+          setCameraError('Camera access not granted. You can point your device camera or enter the 6-digit counter code below.');
+        }
+      }
+    };
+
+    const timer = setTimeout(() => {
+      initCameraScanner();
+    }, 250);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {}).finally(() => {
+          try { scannerRef.current?.clear(); } catch {}
+          scannerRef.current = null;
+        });
+      }
+    };
+  }, [result, tokenFromUrl]);
+
   const handleCheckIn = async (tokenToUse: string) => {
     const cleanToken = tokenToUse.trim();
     if (!cleanToken) {
       setError('Please provide a valid QR check-in token.');
       return;
+    }
+
+    // Stop active camera if running
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+        scannerRef.current = null;
+        setCameraActive(false);
+      } catch {}
     }
 
     // Client-Side Anti-Replay Pre-Validation: Prevent duplicate scan attempts
@@ -86,19 +183,18 @@ function CheckInContent() {
     }
   };
 
-
   return (
     <div className="max-w-xl mx-auto px-4 sm:px-6 py-10 space-y-8">
       {/* Title */}
       <div className="text-center">
         <div className="w-14 h-14 rounded-2xl bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/25 mb-4">
-          <QrCode className="w-7 h-7" />
+          <Camera className="w-7 h-7" />
         </div>
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-          Scan & Collect Stamp
+          Scan Counter QR
         </h1>
         <p className="text-sm text-slate-500 mt-1.5 max-w-sm mx-auto">
-          Scan the QR code displayed at the merchant's counter to instantly verify your visit.
+          Point your camera at the merchant's screen to collect your loyalty stamp automatically.
         </p>
       </div>
 
@@ -272,43 +368,85 @@ function CheckInContent() {
         </div>
       )}
 
-      {/* Input / Scanner Section */}
+      {/* In-App Live Camera Scanner & Manual Fallback Section */}
       {!result && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
-          <div className="text-center space-y-3">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border-2 border-dashed border-emerald-300">
-              <QrCode className="w-8 h-8" />
+          
+          {/* Live Camera Scanner Box */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+              <span className="flex items-center gap-1.5 text-emerald-600">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                Live Camera Scanner
+              </span>
+              <span className="text-slate-400 font-normal text-[11px]">
+                Point at Counter Screen
+              </span>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Scan at Merchant Counter</h2>
-              <p className="text-xs text-slate-500 max-w-xs mx-auto mt-0.5">
-                Point your phone camera at the Dynamic QR Code displayed on the merchant counter screen to collect your stamp.
-              </p>
+
+            <div className="relative w-full max-w-sm mx-auto aspect-square rounded-2xl overflow-hidden bg-slate-950 border-2 border-emerald-500/40 shadow-inner flex items-center justify-center">
+              <div id="qr-reader" className="w-full h-full" />
+
+              {/* Viewfinder Target Graphic */}
+              {cameraActive && (
+                <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-6">
+                  <div className="w-48 h-48 relative">
+                    {/* Viewfinder Corners */}
+                    <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg" />
+                    <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg" />
+                    <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg" />
+                    <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-lg" />
+                    {/* Laser scanning beam */}
+                    <div className="absolute inset-x-2 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#10b981] animate-pulse top-1/2 -translate-y-1/2" />
+                  </div>
+                  <span className="text-[10px] font-bold text-white bg-slate-900/85 px-3 py-1 rounded-full mt-3 border border-white/10 backdrop-blur-sm">
+                    Hold steady facing counter QR
+                  </span>
+                </div>
+              )}
+
+              {/* Loading / Waiting state */}
+              {!cameraActive && !cameraError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 space-y-2 bg-slate-950">
+                  <RefreshCw className="w-8 h-8 animate-spin text-emerald-500" />
+                  <span className="text-xs">Activating camera scanner...</span>
+                </div>
+              )}
+
+              {/* Permission notice state */}
+              {cameraError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 p-6 text-center space-y-2 bg-slate-950">
+                  <CameraOff className="w-8 h-8 text-amber-400 mb-1" />
+                  <span className="text-xs font-semibold text-slate-200">Camera Access Not Granted</span>
+                  <p className="text-[11px] text-slate-400 max-w-xs">{cameraError}</p>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Manual Token Verification fallback */}
+          {/* Manual 6-Digit Counter Code Fallback */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              handleCheckIn(tokenInput);
+              if (tokenInput.trim()) handleCheckIn(tokenInput);
             }}
-            className="pt-6 border-t border-slate-100 space-y-3"
+            className="pt-4 border-t border-slate-100 space-y-2 text-center"
           >
-            <label className="text-xs font-semibold text-slate-700 block text-center">
-              Or enter Check-In Code manually:
+            <label className="text-xs font-semibold text-slate-600 block">
+              Or type 6-Digit Counter Code:
             </label>
-            <div className="flex gap-2 max-w-sm mx-auto">
+            <div className="flex gap-2 max-w-xs mx-auto">
               <input
                 type="text"
+                maxLength={6}
                 value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value)}
-                placeholder="Enter QR check-in token / code"
-                className="flex-1 bg-slate-50 border border-slate-200 focus:border-emerald-600 focus:bg-white rounded-xl px-3 py-2 text-xs font-mono text-slate-900 transition"
+                onChange={(e) => setTokenInput(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="000000"
+                className="flex-1 bg-slate-50 border border-slate-200 focus:border-emerald-600 focus:bg-white rounded-xl px-3 py-2 text-center text-base tracking-widest font-mono font-bold text-slate-900 transition"
               />
               <button
                 type="submit"
-                disabled={loading || !tokenInput.trim()}
+                disabled={loading || tokenInput.trim().length !== 6}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-sm disabled:opacity-50"
               >
                 {loading ? 'Verifying...' : 'Check In'}

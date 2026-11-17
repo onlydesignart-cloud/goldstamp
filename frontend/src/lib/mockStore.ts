@@ -1288,7 +1288,8 @@ class MockDataStore {
     const biz = db.businesses.find((b) => b.id === businessId);
     if (!biz) throw new Error('Business not found');
 
-    const token = `qr_${businessId.substring(0, 6)}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    // Clean 6-digit short counter code
+    const token = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 60 * 1000).toISOString(); // 60s TTL
 
     const record = { token, businessId, branchId, expiresAt, isUsed: false, createdAt: new Date().toISOString() };
