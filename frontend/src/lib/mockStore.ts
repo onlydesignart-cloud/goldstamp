@@ -770,34 +770,21 @@ class MockDataStore {
     const db = this.getDb();
     const cleanEmail = data.email.trim().toLowerCase();
 
-    // Check if user already exists
-    const existingActive = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
-    if (existingActive) {
-      throw new Error('An account with this email address is already registered. Please sign in to your Merchant Console.');
-    }
-
-    // Check if phone already registered
+    // Clean stale local user/business records if re-registering
+    db.users = (db.users || []).filter((u) => u.email.toLowerCase() !== cleanEmail);
     if (data.phone) {
       const cleanPhone = data.phone.replace(/[^0-9]/g, '');
       if (cleanPhone.length >= 10) {
         const targetPhone = cleanPhone.slice(-10);
-        const existingPhone = db.users.find((u) => {
-          if (!u.phone) return false;
+        db.users = (db.users || []).filter((u) => {
+          if (!u.phone) return true;
           const uClean = u.phone.replace(/[^0-9]/g, '');
-          return uClean.length >= 10 && uClean.slice(-10) === targetPhone;
+          return !(uClean.length >= 10 && uClean.slice(-10) === targetPhone);
         });
-        if (existingPhone) {
-          throw new Error('An account with this phone number is already registered. Please sign in or use another number.');
-        }
       }
     }
-
-    // Check if business name already exists
     const cleanBName = data.businessName.trim().toLowerCase();
-    const existingBusiness = (db.businesses || []).find((b) => b.name?.toLowerCase() === cleanBName);
-    if (existingBusiness) {
-      throw new Error('A business with this name is already registered. Please choose another name.');
-    }
+    db.businesses = (db.businesses || []).filter((b) => b.name?.toLowerCase() !== cleanBName);
 
     // Generate 6-digit cryptographic OTP code
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -1028,23 +1015,17 @@ class MockDataStore {
     const db = this.getDb();
     const cleanEmail = data.email.trim().toLowerCase();
 
-    // Check if email already registered
-    const existing = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
-    if (existing) {
-      throw new Error('An account with this Gmail address is already registered. Please log in.');
-    }
-
-    // Check if phone number already registered
-    const cleanPhone = (data.phone || '').replace(/[^0-9]/g, '');
-    if (cleanPhone && cleanPhone.length >= 10) {
-      const targetPhone = cleanPhone.slice(-10);
-      const existingPhone = db.users.find((u) => {
-        if (!u.phone) return false;
-        const uClean = u.phone.replace(/[^0-9]/g, '');
-        return uClean.length >= 10 && uClean.slice(-10) === targetPhone;
-      });
-      if (existingPhone) {
-        throw new Error('An account with this phone number is already registered. Please log in or use another number.');
+    // Clean stale local customer records if re-registering
+    db.users = (db.users || []).filter((u) => u.email.toLowerCase() !== cleanEmail);
+    if (data.phone) {
+      const cleanPhone = (data.phone || '').replace(/[^0-9]/g, '');
+      if (cleanPhone.length >= 10) {
+        const targetPhone = cleanPhone.slice(-10);
+        db.users = (db.users || []).filter((u) => {
+          if (!u.phone) return true;
+          const uClean = u.phone.replace(/[^0-9]/g, '');
+          return !(uClean.length >= 10 && uClean.slice(-10) === targetPhone);
+        });
       }
     }
 

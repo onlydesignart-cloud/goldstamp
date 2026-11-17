@@ -460,21 +460,16 @@ export const api = {
         throw new Error('Temporary or disposable email addresses are not permitted. Please provide an active, permanent business or personal email address.');
       }
 
-      // 2. Check if email already registered in local store or Supabase Postgres
-      const existing = mockStore.getUserByEmail(email);
-      if (existing) {
-        throw new Error('An account with this email address is already registered. Please sign in to your Merchant Console.');
-      }
-
+      // 2. Strict Live Database Check (Database is the sole authority)
       if (typeof window !== 'undefined') {
         try {
           const supabase = createClient();
-          const { data: dbUsers } = await supabase.from('User').select('id').eq('email', email.toLowerCase()).limit(1);
+          const { data: dbUsers } = await supabase.from('User').select('id, email').eq('email', email.toLowerCase()).limit(1);
           if (dbUsers && dbUsers.length > 0) {
             throw new Error('An account with this email address is already registered. Please sign in to your Merchant Console.');
           }
           if (cleanPhone) {
-            const { data: dbPhones } = await supabase.from('User').select('id').eq('phone', cleanPhone).limit(1);
+            const { data: dbPhones } = await supabase.from('User').select('id, phone').eq('phone', cleanPhone).limit(1);
             if (dbPhones && dbPhones.length > 0) {
               throw new Error('An account with this phone number is already registered. Please sign in or use another number.');
             }
@@ -484,15 +479,7 @@ export const api = {
         }
       }
 
-      // 3. Check if phone number already registered in local store
-      if (cleanPhone) {
-        const existingPhone = mockStore.getUserByPhone(cleanPhone);
-        if (existingPhone) {
-          throw new Error('An account with this phone number is already registered. Please sign in or use another number.');
-        }
-      }
-
-      // 4. Create pending merchant OTP in mockStore
+      // 3. Create pending merchant OTP record
       const session = mockStore.createMerchantOtp({
         businessName: sanitizeText(data.businessName, 80),
         ownerName: sanitizeText(data.ownerName, 60),
@@ -707,21 +694,16 @@ export const api = {
         throw new Error('Temporary or disposable email addresses are not permitted. Please provide an active email address.');
       }
 
-      // 2. Check if email already registered in local store or Supabase Postgres
-      const existing = mockStore.getUserByEmail(email);
-      if (existing) {
-        throw new Error('An account with this email/Gmail address is already registered. Please log in.');
-      }
-
+      // 2. Strict Live Database Check (Database is the sole authority)
       if (typeof window !== 'undefined') {
         try {
           const supabase = createClient();
-          const { data: dbUsers } = await supabase.from('User').select('id').eq('email', email.toLowerCase()).limit(1);
+          const { data: dbUsers } = await supabase.from('User').select('id, email').eq('email', email.toLowerCase()).limit(1);
           if (dbUsers && dbUsers.length > 0) {
             throw new Error('An account with this email/Gmail address is already registered. Please log in.');
           }
           if (cleanPhone) {
-            const { data: dbPhones } = await supabase.from('User').select('id').eq('phone', cleanPhone).limit(1);
+            const { data: dbPhones } = await supabase.from('User').select('id, phone').eq('phone', cleanPhone).limit(1);
             if (dbPhones && dbPhones.length > 0) {
               throw new Error('An account with this phone number is already registered. Please log in or use another number.');
             }
@@ -731,15 +713,7 @@ export const api = {
         }
       }
 
-      // 3. Check if phone number already registered in local store
-      if (cleanPhone) {
-        const existingPhone = mockStore.getUserByPhone(cleanPhone);
-        if (existingPhone) {
-          throw new Error('An account with this phone number is already registered. Please log in or use another number.');
-        }
-      }
-
-      // 4. Create pending OTP record in mockStore
+      // 3. Create pending customer OTP record
       const session = mockStore.createCustomerOtp({
         name: sanitizeText(data.name, 60),
         email,
