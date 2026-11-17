@@ -1285,14 +1285,16 @@ class MockDataStore {
   // --- Dynamic QR Engine ---
   public generateQrToken(businessId: string, branchId?: string) {
     const db = this.getDb();
-    const biz = db.businesses.find((b) => b.id === businessId);
-    if (!biz) throw new Error('Business not found');
+    let biz = db.businesses.find((b) => b.id === businessId);
+    if (!biz) {
+      biz = db.businesses[0] || { id: businessId, name: 'Main Venue' };
+    }
 
     // Clean 6-digit short counter code
     const token = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 60 * 1000).toISOString(); // 60s TTL
+    const expiresAt = new Date(Date.now() + 180 * 1000).toISOString(); // 180s TTL
 
-    const record = { token, businessId, branchId, expiresAt, isUsed: false, createdAt: new Date().toISOString() };
+    const record = { token, businessId: biz.id, branchId, expiresAt, isUsed: false, createdAt: new Date().toISOString() };
     db.qrTokens = db.qrTokens.filter((q) => new Date(q.expiresAt).getTime() > Date.now()); // prune expired
     db.qrTokens.push(record);
     this.saveDb(db);
@@ -1302,16 +1304,48 @@ class MockDataStore {
       token,
       expiresAt,
       expiresInSeconds: 60,
-      businessId,
+      businessId: biz.id,
       checkInUrl,
     };
   }
 
+  public registerQrToken(record: { token: string; businessId: string; branchId?: string | null; expiresAt: string; isUsed?: boolean }) {
+    const db = this.getDb();
+    if (!db.qrTokens) db.qrTokens = [];
+    db.qrTokens = db.qrTokens.filter((q) => new Date(q.expiresAt).getTime() > Date.now());
+    db.qrTokens.push({ ...record, isUsed: record.isUsed ?? false, createdAt: new Date().toISOString() });
+    this.saveDb(db);
+  }
+
+  public updateCustomerStamps(userId: string, businessId: string, stamps: number, visits: number, points: number) {
+    const db = this.getDb();
+    let localCb = db.customerBusinesses.find((c: any) => c.userId === userId && c.businessId === businessId);
+    if (!localCb) {
+      localCb = { id: `cb_${userId}_${businessId}`, userId, businessId, totalStamps: 0, totalVisits: 0, totalPoints: 0 };
+      db.customerBusinesses.push(localCb);
+    }
+    localCb.totalStamps = stamps;
+    localCb.totalVisits = visits;
+    localCb.totalPoints = points;
+    localCb.lastVisitAt = new Date().toISOString();
+    this.saveDb(db);
+  }
+
   public processCheckIn(tokenOrPayload: any, userId?: string) {
     const db = this.getDb();
-    const token = typeof tokenOrPayload === 'string'
+    let token = typeof tokenOrPayload === 'string'
       ? tokenOrPayload
       : (tokenOrPayload?.qrToken || tokenOrPayload?.token || '');
+    if (token.includes('token=')) {
+      try {
+        const u = new URL(token);
+        token = u.searchParams.get('token') || token;
+      } catch {
+        const m = token.match(/token=([a-zA-Z0-9_-]+)/);
+        if (m && m[1]) token = m[1];
+      }
+    }
+    token = token.trim();
     const activeUserId = userId || (typeof tokenOrPayload === 'object' ? tokenOrPayload?.customerId : null) || 'usr_customer_alex';
     const user = db.users.find((u) => u.id === activeUserId) || db.users[3] || { id: activeUserId, name: 'Customer', email: 'guest@example.com' };
 
@@ -1339,7 +1373,7 @@ class MockDataStore {
     }
 
     if (new Date(qrRecord.expiresAt).getTime() < Date.now()) {
-      throw new Error('EXPIRED_TOKEN: This QR code has expired (60-second validity). Please scan the current code on the counter screen.');
+      throw new Error('EXPIRED_TOKEN: This QR code has expired. Please scan the current fresh code on the counter screen.');
     }
 
     const businessId = qrRecord.businessId;

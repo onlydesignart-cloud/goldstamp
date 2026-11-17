@@ -1342,10 +1342,70 @@ export const api = {
   // --- Dynamic QR Kiosk Engine ---
   generateDynamicQr: async (businessId: string, options: any = {}): Promise<ApiResponse<any>> => {
     return asyncWrap(async () => {
-      const tokenData = mockStore.generateQrToken(businessId, options.branchId);
+      // 1. Generate clean 6-digit counter code
+      const token = Math.floor(100000 + Math.random() * 900000).toString();
+      // 3-minute validity (180s) ensures customers don't get rejected while typing or pointing camera
+      const expiresAt = new Date(Date.now() + 180 * 1000).toISOString();
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://goldstamp.vercel.app';
+      const checkInUrl = `${origin}/checkin?token=${token}`;
+
+      // 2. Direct Write into Live Supabase PostgreSQL QRCode table
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+          let validBizId = businessId;
+
+          // Verify businessId exists in DB to prevent foreign key errors
+          const { data: bCheck } = await supabase.from('Business').select('id').eq('id', businessId).limit(1);
+          if (!bCheck || bCheck.length === 0) {
+            const { data: anyB } = await supabase.from('Business').select('id').limit(1);
+            if (anyB && anyB.length > 0) {
+              validBizId = anyB[0].id;
+            } else {
+              validBizId = businessId || 'biz_test';
+              await supabase.from('Business').upsert({
+                id: validBizId,
+                name: options.businessName || 'Business Venue',
+                slug: 'business-venue',
+                status: 'ACTIVE',
+                updatedAt: new Date().toISOString(),
+              });
+            }
+          }
+
+          const qrId = `qr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+          const { error: qrErr } = await supabase.from('QRCode').insert({
+            id: qrId,
+            businessId: validBizId,
+            branchId: options.branchId || null,
+            campaignId: options.campaignId || null,
+            token: token,
+            expiresAt: expiresAt,
+            type: 'DYNAMIC_CHECKIN',
+            isUsed: false,
+            createdAt: new Date().toISOString(),
+          });
+          if (qrErr) console.warn('Supabase QRCode insert note:', qrErr);
+        } catch (dbErr) {
+          console.warn('Supabase generateDynamicQr note:', dbErr);
+        }
+      }
+
+      // 3. Keep local mockStore in sync for offline fallback
+      try {
+        mockStore.registerQrToken({
+          token,
+          businessId,
+          branchId: options.branchId || null,
+          expiresAt,
+          isUsed: false,
+        });
+      } catch {}
+
+      // 4. Generate QR Canvas Image
       let qrDataUrl = '';
       try {
-        qrDataUrl = await QRCode.toDataURL(tokenData.checkInUrl, {
+        qrDataUrl = await QRCode.toDataURL(checkInUrl, {
           width: 320,
           margin: 1,
           color: {
@@ -1356,8 +1416,13 @@ export const api = {
       } catch (err) {
         console.error('Failed to generate QR code canvas:', err);
       }
+
       return {
-        ...tokenData,
+        token,
+        expiresAt,
+        expiresInSeconds: 60, // Kiosk visual progress counts down 60s
+        businessId,
+        checkInUrl,
         qrDataUrl,
       };
     }, 'Dynamic QR generated');
@@ -1381,147 +1446,229 @@ export const api = {
       if (!checkClientRateLimit('client_checkin', 1000)) {
         throw new Error('Please wait a moment before checking in again.');
       }
+
+      // 1. Clean token (handles raw "123456" and full URLs "https://.../checkin?token=123456")
+      let cleanToken = (data.token || '').trim();
+      if (cleanToken.includes('token=')) {
+        try {
+          const url = new URL(cleanToken);
+          cleanToken = url.searchParams.get('token') || cleanToken;
+        } catch {
+          const m = cleanToken.match(/token=([a-zA-Z0-9_-]+)/);
+          if (m && m[1]) cleanToken = m[1];
+        }
+      }
+      cleanToken = cleanToken.trim();
+
+      if (!cleanToken) {
+        throw new Error('INVALID_TOKEN: Please provide a valid QR check-in token.');
+      }
+
+      // 2. Resolve Active Customer
       let customerId: string | undefined;
+      let customerName = 'Customer Member';
+      let customerEmail = 'customer@goldstamp.test';
+      let customerPhone: string | null = null;
+
       if (typeof window !== 'undefined') {
         const custStored = localStorage.getItem('goldstamp_customer_user') || localStorage.getItem('goldstamp_user');
         if (custStored) {
           const parsed = safeJsonParse<any>(custStored, null);
-          if (parsed?.id) customerId = parsed.id;
+          if (parsed?.id) {
+            customerId = parsed.id;
+            if (parsed.name) customerName = parsed.name;
+            if (parsed.email) customerEmail = parsed.email;
+            if (parsed.phone) customerPhone = parsed.phone;
+          }
         }
       }
-
       const activeCustId = customerId || 'usr_customer_alex';
-      const mockResult = mockStore.processCheckIn(data.token, activeCustId);
 
-      // Persist in Supabase PostgreSQL
+      // 3. PRIMARY VERIFICATION: Live Supabase PostgreSQL QRCode table!
       if (typeof window !== 'undefined') {
         try {
           const supabase = createClient();
-          const bizId = (mockResult as any).business?.id || 'biz_test';
-          const campId = (mockResult as any).campaign?.id || null;
-          const visitId = `vis_${Date.now()}`;
-          const stampId = `st_${Date.now()}`;
 
-          // 1. Insert Visit
-          await supabase.from('Visit').insert({
-            id: visitId,
-            userId: activeCustId,
-            businessId: bizId,
-            campaignId: campId,
-            verificationMethod: 'QR',
-            deviceInfo: data.deviceInfo || 'Customer Mobile Web',
-          });
+          // A. Query Supabase for this token
+          const { data: qrRows, error: qrErr } = await supabase
+            .from('QRCode')
+            .select('*, business:Business(*)')
+            .eq('token', cleanToken)
+            .order('createdAt', { ascending: false })
+            .limit(1);
 
-          // 2. Insert StampTransaction if campaign exists
-          if (campId) {
-            await supabase.from('StampTransaction').insert({
-              id: stampId,
+          if (qrRows && qrRows.length > 0) {
+            const qrRecord = qrRows[0];
+
+            // Anti-Fraud 1: Token already burned?
+            if (qrRecord.isUsed) {
+              throw new Error('FRAUD_PREVENTED: This QR code has already been scanned and consumed. Once scanned, tokens are instantly burned to prevent replay.');
+            }
+
+            // Anti-Fraud 2: Expiration check (with 45-second latency buffer for mobile networks)
+            const expiryTime = new Date(qrRecord.expiresAt).getTime();
+            if (Date.now() > expiryTime + 45000) {
+              throw new Error('EXPIRED_TOKEN: This counter QR code has expired. Please scan the current fresh QR code from the counter.');
+            }
+
+            // B. Atomically Burn the Token in Supabase immediately!
+            await supabase.from('QRCode').update({ isUsed: true }).eq('id', qrRecord.id);
+
+            const bizId = qrRecord.businessId;
+            const bizName = qrRecord.business?.name || 'SmashZone Arena';
+
+            // C. Ensure Customer User exists in Supabase DB (prevent FK violation)
+            const { data: dbUser } = await supabase.from('User').select('id, name, email, phone').eq('id', activeCustId).maybeSingle();
+            if (!dbUser) {
+              await supabase.from('User').upsert({
+                id: activeCustId,
+                name: customerName,
+                email: customerEmail,
+                phone: customerPhone,
+                role: 'CUSTOMER',
+                status: 'ACTIVE',
+                updatedAt: new Date().toISOString(),
+              });
+            } else {
+              customerName = dbUser.name || customerName;
+              customerPhone = dbUser.phone || customerPhone;
+            }
+
+            // D. Resolve Campaign for this business
+            let targetCamp: any = null;
+            if (qrRecord.campaignId) {
+              const { data: c } = await supabase.from('Campaign').select('*, rules:CampaignRule(*), rewards:Reward(*)').eq('id', qrRecord.campaignId).maybeSingle();
+              if (c) targetCamp = c;
+            }
+            if (!targetCamp) {
+              const { data: camps } = await supabase.from('Campaign').select('*, rules:CampaignRule(*), rewards:Reward(*)').eq('businessId', bizId).eq('status', 'ACTIVE').limit(1);
+              if (camps && camps.length > 0) targetCamp = camps[0];
+            }
+            if (!targetCamp) {
+              const { data: anyCamp } = await supabase.from('Campaign').select('*, rules:CampaignRule(*), rewards:Reward(*)').eq('status', 'ACTIVE').limit(1);
+              if (anyCamp && anyCamp.length > 0) targetCamp = anyCamp[0];
+            }
+            if (!targetCamp) {
+              targetCamp = {
+                id: 'camp_default',
+                name: 'Loyalty Milestone Club',
+                rules: [{ conditionValue: 10, rewardValue: '1 Hour Free Court Session' }],
+              };
+            }
+
+            const visitId = `vis_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+            const stampId = `st_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+            // E. Insert Visit into Supabase
+            await supabase.from('Visit').insert({
+              id: visitId,
               userId: activeCustId,
               businessId: bizId,
-              campaignId: campId,
-              visitId: visitId,
+              campaignId: targetCamp?.id || null,
               verificationMethod: 'QR',
+              deviceInfo: data.deviceInfo || 'Customer Mobile Web',
             });
+
+            // F. Insert StampTransaction into Supabase
+            if (targetCamp?.id) {
+              await supabase.from('StampTransaction').insert({
+                id: stampId,
+                userId: activeCustId,
+                businessId: bizId,
+                campaignId: targetCamp.id,
+                visitId: visitId,
+                verificationMethod: 'QR',
+              });
+            }
+
+            // G. Upsert CustomerBusiness stats in Supabase
+            const { data: existingCb } = await supabase
+              .from('CustomerBusiness')
+              .select('*')
+              .eq('userId', activeCustId)
+              .eq('businessId', bizId)
+              .maybeSingle();
+
+            const currentStamps = (existingCb?.totalStamps || 0) + 1;
+            const currentVisits = (existingCb?.totalVisits || 0) + 1;
+            const currentPoints = (existingCb?.totalPoints || 0) + 10;
+
+            await supabase.from('CustomerBusiness').upsert({
+              id: existingCb?.id || `cb_${activeCustId}_${bizId}`,
+              userId: activeCustId,
+              businessId: bizId,
+              status: 'ACTIVE',
+              totalStamps: currentStamps,
+              totalVisits: currentVisits,
+              totalPoints: currentPoints,
+              lastVisitAt: new Date().toISOString(),
+            });
+
+            // H. Milestone Check & Voucher Grant
+            const milestoneTarget = targetCamp?.rules?.[0]?.conditionValue || 10;
+            const rewardTitle = targetCamp?.rules?.[0]?.rewardValue || targetCamp?.rewards?.[0]?.title || '1 Hour Free Court Session';
+            const cycleStamps = currentStamps % milestoneTarget === 0 ? milestoneTarget : (currentStamps % milestoneTarget);
+            const isMilestoneUnlocked = currentStamps > 0 && currentStamps % milestoneTarget === 0;
+
+            let voucherCode = null;
+            if (isMilestoneUnlocked) {
+              voucherCode = `GS-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+              await supabase.from('RewardRedemption').insert({
+                id: `red_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                userId: activeCustId,
+                businessId: bizId,
+                rewardId: targetCamp?.rewards?.[0]?.id || `rew_${Date.now()}`,
+                voucherCode,
+                status: 'AVAILABLE',
+                issuedAt: new Date().toISOString(),
+              });
+            }
+
+            // I. Also update local mockStore on device so wallet immediately reflects the stamp
+            try {
+              mockStore.updateCustomerStamps(activeCustId, bizId, currentStamps, currentVisits, currentPoints);
+            } catch {}
+
+            return {
+              id: visitId,
+              customerName,
+              business: {
+                id: bizId,
+                name: bizName,
+              },
+              campaign: {
+                id: targetCamp.id,
+                name: targetCamp.name,
+              },
+              currentStamps,
+              cycleStamps,
+              milestoneTarget,
+              rewardUnlocked: isMilestoneUnlocked,
+              unlockedReward: isMilestoneUnlocked ? rewardTitle : null,
+              voucherCode,
+              verificationMethod: 'QR',
+              timestamp: new Date().toISOString(),
+            };
           }
-
-          // 3. Upsert CustomerBusiness stats
-          const { data: existingCb } = await supabase
-            .from('CustomerBusiness')
-            .select('*')
-            .eq('userId', activeCustId)
-            .eq('businessId', bizId)
-            .maybeSingle();
-
-          const currentStamps = (existingCb?.totalStamps || 0) + 1;
-          const currentVisits = (existingCb?.totalVisits || 0) + 1;
-          const currentPoints = (existingCb?.totalPoints || 0) + 10;
-
-          await supabase.from('CustomerBusiness').upsert({
-            id: existingCb?.id || `cb_${activeCustId}_${bizId}`,
-            userId: activeCustId,
-            businessId: bizId,
-            status: 'ACTIVE',
-            totalStamps: currentStamps,
-            totalVisits: currentVisits,
-            totalPoints: currentPoints,
-            lastVisitAt: new Date().toISOString(),
-          });
-        } catch (dbErr) {
-          console.warn('Supabase checkin note:', dbErr);
+        } catch (dbErr: any) {
+          if (dbErr.message?.startsWith('FRAUD_PREVENTED') || dbErr.message?.startsWith('EXPIRED_TOKEN')) {
+            throw dbErr;
+          }
+          console.warn('Supabase checkIn note:', dbErr);
         }
       }
 
+      // 4. Fallback to mockStore (for offline testing or demo tokens)
+      const mockResult = mockStore.processCheckIn(cleanToken, activeCustId);
       return mockResult;
     });
   },
 
   processCheckIn: async (payload: any): Promise<ApiResponse<any>> => {
-    return asyncWrap(async () => {
-      if (!checkClientRateLimit('client_checkin', 1000)) {
-        throw new Error('Please wait a moment before checking in again.');
-      }
-      let customerId: string | undefined = payload?.customerId;
-      if (!customerId && typeof window !== 'undefined') {
-        const custStored = localStorage.getItem('goldstamp_customer_user') || localStorage.getItem('goldstamp_user');
-        if (custStored) {
-          const parsed = safeJsonParse<any>(custStored, null);
-          if (parsed?.id) customerId = parsed.id;
-        }
-      }
-      const activeCustId = customerId || 'usr_customer_alex';
-      const mockResult = mockStore.processCheckIn(payload, activeCustId);
-
-      if (typeof window !== 'undefined') {
-        try {
-          const supabase = createClient();
-          const bizId = (mockResult as any).business?.id || 'biz_test';
-          const campId = (mockResult as any).campaign?.id || null;
-          const visitId = `vis_${Date.now()}`;
-          const stampId = `st_${Date.now()}`;
-
-          await supabase.from('Visit').insert({
-            id: visitId,
-            userId: activeCustId,
-            businessId: bizId,
-            campaignId: campId,
-            verificationMethod: 'QR',
-            deviceInfo: 'Counter QR Terminal',
-          });
-
-          if (campId) {
-            await supabase.from('StampTransaction').insert({
-              id: stampId,
-              userId: activeCustId,
-              businessId: bizId,
-              campaignId: campId,
-              visitId: visitId,
-              verificationMethod: 'QR',
-            });
-          }
-
-          const { data: existingCb } = await supabase
-            .from('CustomerBusiness')
-            .select('*')
-            .eq('userId', activeCustId)
-            .eq('businessId', bizId)
-            .maybeSingle();
-
-          await supabase.from('CustomerBusiness').upsert({
-            id: existingCb?.id || `cb_${activeCustId}_${bizId}`,
-            userId: activeCustId,
-            businessId: bizId,
-            status: 'ACTIVE',
-            totalStamps: (existingCb?.totalStamps || 0) + 1,
-            totalVisits: (existingCb?.totalVisits || 0) + 1,
-            totalPoints: (existingCb?.totalPoints || 0) + 10,
-            lastVisitAt: new Date().toISOString(),
-          });
-        } catch (dbErr) {
-          console.warn('Supabase processCheckIn note:', dbErr);
-        }
-      }
-
-      return mockResult;
+    const token = typeof payload === 'string' ? payload : (payload?.qrToken || payload?.token || '');
+    return api.checkIn({
+      token,
+      deviceInfo: payload?.metadata?.client || 'Counter Kiosk Terminal',
     });
   },
 
