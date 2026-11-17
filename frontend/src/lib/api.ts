@@ -1441,7 +1441,73 @@ export const api = {
   },
 
   // --- Check-In Engine (Atomic Milestone & Stamps) ---
-  checkIn: async (data: { token: string; deviceInfo?: string }): Promise<ApiResponse<any>> => {
+  previewCheckIn: async (token: string): Promise<ApiResponse<any>> => {
+    return asyncWrap(async () => {
+      let cleanToken = (token || '').trim();
+      if (cleanToken.includes('token=')) {
+        try {
+          const url = new URL(cleanToken);
+          cleanToken = url.searchParams.get('token') || cleanToken;
+        } catch {
+          const m = cleanToken.match(/token=([a-zA-Z0-9_-]+)/);
+          if (m && m[1]) cleanToken = m[1];
+        }
+      }
+      cleanToken = cleanToken.trim();
+      if (!cleanToken) throw new Error('INVALID_TOKEN: Please provide a valid QR check-in token.');
+
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+          const { data: qrRows } = await supabase
+            .from('QRCode')
+            .select('*, business:Business(*)')
+            .eq('token', cleanToken)
+            .order('createdAt', { ascending: false })
+            .limit(1);
+
+          if (qrRows && qrRows.length > 0) {
+            const qr = qrRows[0];
+            if (qr.isUsed) {
+              throw new Error('FRAUD_PREVENTED: This QR code has already been scanned and consumed. Once scanned, tokens are instantly burned to prevent replay.');
+            }
+            if (new Date(qr.expiresAt).getTime() + 45000 < Date.now()) {
+              throw new Error('EXPIRED_TOKEN: This counter QR code has expired. Please scan a fresh QR code from the counter.');
+            }
+
+            // Fetch active campaigns for this business
+            const { data: camps } = await supabase
+              .from('Campaign')
+              .select('*, rules:CampaignRule(*), rewards:Reward(*)')
+              .eq('businessId', qr.businessId)
+              .eq('status', 'ACTIVE');
+
+            return {
+              token: cleanToken,
+              business: {
+                id: qr.businessId,
+                name: qr.business?.name || 'Partner Venue',
+              },
+              campaigns: camps && camps.length > 0 ? camps : [],
+            };
+          }
+        } catch (dbErr: any) {
+          if (dbErr.message?.startsWith('FRAUD_PREVENTED') || dbErr.message?.startsWith('EXPIRED_TOKEN')) {
+            throw dbErr;
+          }
+          console.warn('Supabase previewCheckIn note:', dbErr);
+        }
+      }
+
+      return {
+        token: cleanToken,
+        business: { id: 'biz_test', name: 'Partner Venue' },
+        campaigns: [],
+      };
+    });
+  },
+
+  checkIn: async (data: { token: string; campaignId?: string; deviceInfo?: string }): Promise<ApiResponse<any>> => {
     return asyncWrap(async () => {
       if (!checkClientRateLimit('client_checkin', 1000)) {
         throw new Error('Please wait a moment before checking in again.');
@@ -1515,7 +1581,7 @@ export const api = {
             await supabase.from('QRCode').update({ isUsed: true }).eq('id', qrRecord.id);
 
             const bizId = qrRecord.businessId;
-            const bizName = qrRecord.business?.name || 'SmashZone Arena';
+            const bizName = qrRecord.business?.name || 'CRICK PICK';
 
             // C. Ensure Customer User exists in Supabase DB (prevent FK violation)
             const { data: dbUser } = await supabase.from('User').select('id, name, email, phone').eq('id', activeCustId).maybeSingle();
@@ -1534,9 +1600,13 @@ export const api = {
               customerPhone = dbUser.phone || customerPhone;
             }
 
-            // D. Resolve Campaign for this business
+            // D. Resolve Campaign for this business (supports specific campaign selection)
             let targetCamp: any = null;
-            if (qrRecord.campaignId) {
+            if (data.campaignId) {
+              const { data: c } = await supabase.from('Campaign').select('*, rules:CampaignRule(*), rewards:Reward(*)').eq('id', data.campaignId).maybeSingle();
+              if (c) targetCamp = c;
+            }
+            if (!targetCamp && qrRecord.campaignId) {
               const { data: c } = await supabase.from('Campaign').select('*, rules:CampaignRule(*), rewards:Reward(*)').eq('id', qrRecord.campaignId).maybeSingle();
               if (c) targetCamp = c;
             }
@@ -1581,7 +1651,20 @@ export const api = {
               });
             }
 
-            // G. Upsert CustomerBusiness stats in Supabase
+            // G. Relational Count of Stamps for this specific campaign
+            let currentStamps = 1;
+            try {
+              const { count: campStampCount } = await supabase
+                .from('StampTransaction')
+                .select('id', { count: 'exact', head: true })
+                .eq('userId', activeCustId)
+                .eq('campaignId', targetCamp.id);
+              if (campStampCount !== null && campStampCount !== undefined) {
+                currentStamps = campStampCount;
+              }
+            } catch {}
+
+            // H. Upsert CustomerBusiness stats in Supabase
             const { data: existingCb } = await supabase
               .from('CustomerBusiness')
               .select('*')
@@ -1589,7 +1672,7 @@ export const api = {
               .eq('businessId', bizId)
               .maybeSingle();
 
-            const currentStamps = (existingCb?.totalStamps || 0) + 1;
+            const totalStamps = (existingCb?.totalStamps || 0) + 1;
             const currentVisits = (existingCb?.totalVisits || 0) + 1;
             const currentPoints = (existingCb?.totalPoints || 0) + 10;
 
@@ -1598,13 +1681,13 @@ export const api = {
               userId: activeCustId,
               businessId: bizId,
               status: 'ACTIVE',
-              totalStamps: currentStamps,
+              totalStamps,
               totalVisits: currentVisits,
               totalPoints: currentPoints,
               lastVisitAt: new Date().toISOString(),
             });
 
-            // H. Milestone Check & Voucher Grant
+            // I. Milestone Check & Voucher Grant
             const milestoneTarget = targetCamp?.rules?.[0]?.conditionValue || 10;
             const rewardTitle = targetCamp?.rules?.[0]?.rewardValue || targetCamp?.rewards?.[0]?.title || '1 Hour Free Court Session';
             const cycleStamps = currentStamps % milestoneTarget === 0 ? milestoneTarget : (currentStamps % milestoneTarget);
@@ -1624,7 +1707,7 @@ export const api = {
               });
             }
 
-            // I. Also update local mockStore on device so wallet immediately reflects the stamp
+            // J. Also update local mockStore on device so wallet immediately reflects the stamp
             try {
               mockStore.updateCustomerStamps(activeCustId, bizId, currentStamps, currentVisits, currentPoints);
             } catch {}
@@ -1862,38 +1945,58 @@ export const api = {
           .eq('userId', userId);
 
         if (!error && memberships && memberships.length > 0) {
-          const formatted = memberships.map((m: any) => {
+          const formatted: any[] = [];
+          for (const m of memberships) {
             const biz = m.business;
-            const activeCamp = biz?.campaigns?.find((c: any) => c.status === 'ACTIVE') || biz?.campaigns?.[0] || null;
-            const rule = activeCamp?.rules?.[0];
-            const reward = activeCamp?.rewards?.[0];
+            const activeCamps = biz?.campaigns?.filter((c: any) => c.status === 'ACTIVE') || [];
+            if (activeCamps.length === 0 && biz?.campaigns?.[0]) {
+              activeCamps.push(biz.campaigns[0]);
+            }
+            for (const camp of activeCamps) {
+              const rule = camp.rules?.[0];
+              const reward = camp.rewards?.[0];
 
+              let campStamps = m.totalStamps || 0;
+              try {
+                const { count } = await supabase
+                  .from('StampTransaction')
+                  .select('id', { count: 'exact', head: true })
+                  .eq('userId', userId)
+                  .eq('campaignId', camp.id);
+                if (count !== null && count !== undefined) campStamps = count;
+              } catch {}
+
+              formatted.push({
+                id: `${m.id}_${camp.id}`,
+                businessId: m.businessId,
+                userId: m.userId,
+                status: m.status,
+                totalVisits: m.totalVisits || 0,
+                totalStamps: campStamps,
+                totalPoints: m.totalPoints || 0,
+                lastVisitAt: m.lastVisitAt,
+                joinedAt: m.joinedAt,
+                business: biz,
+                campaign: camp,
+                activeCampaign: {
+                  id: camp.id,
+                  name: camp.name,
+                  type: camp.type,
+                  category: camp.recurrenceType || 'GENERAL',
+                  targetStamps: rule?.conditionValue || 10,
+                  rewardTitle: reward?.title || rule?.rewardValue || 'Loyalty Reward',
+                  rewardId: reward?.id,
+                },
+              });
+            }
+          }
+
+          if (formatted.length > 0) {
             return {
-              id: m.id,
-              businessId: m.businessId,
-              userId: m.userId,
-              status: m.status,
-              totalVisits: m.totalVisits || 0,
-              totalStamps: m.totalStamps || 0,
-              totalPoints: m.totalPoints || 0,
-              lastVisitAt: m.lastVisitAt,
-              joinedAt: m.joinedAt,
-              business: biz,
-              campaign: activeCamp,
-              activeCampaign: activeCamp ? {
-                id: activeCamp.id,
-                name: activeCamp.name,
-                type: activeCamp.type,
-                targetStamps: rule?.conditionValue || 10,
-                rewardTitle: reward?.title || 'Loyalty Reward',
-                rewardId: reward?.id,
-              } : null,
+              success: true,
+              data: formatted,
             };
-          });
-          return {
-            success: true,
-            data: formatted,
-          };
+          }
         }
       } catch (e) {
         console.warn('Supabase getMyLoyalty note:', e);

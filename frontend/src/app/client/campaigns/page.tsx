@@ -72,8 +72,20 @@ export default function ClientCampaignsPage() {
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
-                      {camp.type} Program
+                    <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5">
+                      <span>
+                        {camp.recurrenceType === 'CAFE'
+                          ? '☕ Café & F&B'
+                          : camp.recurrenceType === 'SPORTS'
+                          ? '🎾 Sports & Court'
+                          : camp.recurrenceType === 'SALON'
+                          ? '✂️ Salon & Spa'
+                          : camp.recurrenceType === 'GYM'
+                          ? '🏋️ Gym & Fitness'
+                          : camp.recurrenceType === 'GAMING'
+                          ? '🎮 Gaming Zone'
+                          : '⭐ Loyalty Pass'}
+                      </span>
                     </span>
                     <span
                       className={`text-xs font-semibold px-2 py-0.5 rounded-full ${

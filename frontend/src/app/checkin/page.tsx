@@ -33,21 +33,26 @@ function CheckInContent() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Multi-Program 1-Tap Selector State
+  const [availableCampaigns, setAvailableCampaigns] = useState<any[]>([]);
+  const [pendingToken, setPendingToken] = useState<string>('');
+  const [previewVenue, setPreviewVenue] = useState<any>(null);
+
   // In-app live camera state
   const scannerRef = useRef<any>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
-  // If URL has token on mount and user is logged in, auto process!
+  // If URL has token on mount, auto process!
   useEffect(() => {
-    if (tokenFromUrl && user) {
+    if (tokenFromUrl) {
       handleCheckIn(tokenFromUrl);
     }
-  }, [tokenFromUrl, user]);
+  }, [tokenFromUrl]);
 
   // Initialize In-App Camera Scanner on mount if no result and no token in URL
   useEffect(() => {
-    if (result || tokenFromUrl) return;
+    if (result || tokenFromUrl || availableCampaigns.length > 0) return;
 
     let isMounted = true;
 
@@ -132,7 +137,6 @@ function CheckInContent() {
       return;
     }
 
-    // Stop active camera if running
     if (scannerRef.current) {
       try {
         await scannerRef.current.stop();
@@ -141,38 +145,62 @@ function CheckInContent() {
       } catch { }
     }
 
-    // Client-Side Anti-Replay Pre-Validation: Prevent duplicate scan attempts
-    if (typeof window !== 'undefined' && sessionStorage.getItem(`scanned_${cleanToken}`)) {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('scanned_' + cleanToken)) {
       setError('Anti-Fraud Guard: You have already scanned this counter QR code on this device. Dynamic QR codes are strictly single-use.');
       return;
     }
 
     setLoading(true);
     setError(null);
+
+    try {
+      const previewRes = await api.previewCheckIn(cleanToken);
+      if (previewRes.success && previewRes.data) {
+        const camps = previewRes.data.campaigns || [];
+        if (camps.length > 1) {
+          setAvailableCampaigns(camps);
+          setPendingToken(cleanToken);
+          setPreviewVenue(previewRes.data.business);
+          setLoading(false);
+          return;
+        }
+        await executeCheckIn(cleanToken, camps[0]?.id);
+      } else {
+        await executeCheckIn(cleanToken);
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during check-in.');
+      setLoading(false);
+    }
+  };
+
+  const executeCheckIn = async (tokenToUse: string, campaignId?: string) => {
+    setLoading(true);
+    setError(null);
     setResult(null);
 
     try {
       const res = await api.checkIn({
-        token: cleanToken,
+        token: tokenToUse,
+        campaignId,
         deviceInfo: typeof navigator !== 'undefined' ? navigator.userAgent : 'Web Browser',
       });
 
       if (res.success && res.data) {
         setResult(res.data);
+        setAvailableCampaigns([]);
+        setPendingToken('');
         if (typeof window !== 'undefined') {
-          sessionStorage.setItem(`scanned_${cleanToken}`, 'true');
+          sessionStorage.setItem('scanned_' + tokenToUse, 'true');
         }
 
-        // Trigger celebratory confetti!
         try {
           confetti({
             particleCount: 80,
             spread: 70,
             origin: { y: 0.6 },
           });
-        } catch {
-          // Non-blocking
-        }
+        } catch { }
       } else {
         setError(res.error?.message || 'Check-in failed. Please verify the QR code and try again.');
       }
