@@ -786,8 +786,8 @@ class MockDataStore {
     const cleanBName = data.businessName.trim().toLowerCase();
     db.businesses = (db.businesses || []).filter((b) => b.name?.toLowerCase() !== cleanBName);
 
-    // Generate 6-digit cryptographic OTP code
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate 8-digit cryptographic OTP code
+    const otpCode = Math.floor(10000000 + Math.random() * 90000000).toString();
     const verificationSessionId = `m_session_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 mins
 
@@ -924,7 +924,7 @@ class MockDataStore {
       throw new Error('INVALID_SESSION: Verification session not found. Please register again.');
     }
 
-    const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const newOtpCode = Math.floor(10000000 + Math.random() * 90000000).toString();
     record.otpCode = newOtpCode;
     record.attempts = 0;
     record.expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
@@ -1029,8 +1029,8 @@ class MockDataStore {
       }
     }
 
-    // Generate 6-digit cryptographic OTP code
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate 8-digit cryptographic OTP code
+    const otpCode = Math.floor(10000000 + Math.random() * 90000000).toString();
     const verificationSessionId = `cs_session_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
 
@@ -1140,7 +1140,7 @@ class MockDataStore {
       throw new Error('INVALID_SESSION: Verification session not found. Please sign up again.');
     }
 
-    const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const newOtpCode = Math.floor(10000000 + Math.random() * 90000000).toString();
     record.otpCode = newOtpCode;
     record.attempts = 0;
     record.expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
