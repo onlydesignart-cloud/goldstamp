@@ -18,8 +18,6 @@ import {
   MessageSquare,
   Mail,
   Smartphone,
-  Coffee,
-  Activity,
 } from 'lucide-react';
 
 function CheckInContent() {
@@ -88,41 +86,6 @@ function CheckInContent() {
     }
   };
 
-  /**
-   * Fast Demo Check-In Simulator:
-   * Generates a dynamic token for SmashZone or Artisan Café and executes check-in instantly!
-   */
-  const handleQuickDemoCheckIn = async (merchantSlug: 'smashzone' | 'cafe') => {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-
-    try {
-      const bizListRes = await api.getPublicBusinesses();
-      const businesses = bizListRes.data || [];
-      const targetBiz = businesses.find((b: any) =>
-        merchantSlug === 'smashzone'
-          ? b.slug.includes('smashzone')
-          : b.slug.includes('artisan')
-      ) || businesses[0];
-
-      if (!targetBiz) {
-        throw new Error('No test business found');
-      }
-
-      // Generate a fresh dynamic token for this business
-      const qrRes = await api.generateDynamicQr(targetBiz.id);
-      if (!qrRes.success || !qrRes.data) {
-        throw new Error('Failed to generate dynamic check-in token');
-      }
-
-      setTokenInput(qrRes.data.token);
-      await handleCheckIn(qrRes.data.token);
-    } catch (err: any) {
-      setError(err.message || 'Quick demo check-in failed');
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="max-w-xl mx-auto px-4 sm:px-6 py-10 space-y-8">
@@ -324,45 +287,34 @@ function CheckInContent() {
             </div>
           </div>
 
-          {/* Quick Demo Simulator Section */}
-          <div className="pt-6 border-t border-slate-100 space-y-3">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider text-center">
-              1-Click Demo Check-In Simulators
-            </div>
-            <p className="text-[11px] text-slate-500 text-center">
-              Test the end-to-end QR check-in and anti-fraud cooldown engine directly:
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {/* Manual Token Verification fallback */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleCheckIn(tokenInput);
+            }}
+            className="pt-6 border-t border-slate-100 space-y-3"
+          >
+            <label className="text-xs font-semibold text-slate-700 block text-center">
+              Or enter Check-In Code manually:
+            </label>
+            <div className="flex gap-2 max-w-sm mx-auto">
+              <input
+                type="text"
+                value={tokenInput}
+                onChange={(e) => setTokenInput(e.target.value)}
+                placeholder="Enter QR check-in token / code"
+                className="flex-1 bg-slate-50 border border-slate-200 focus:border-emerald-600 focus:bg-white rounded-xl px-3 py-2 text-xs font-mono text-slate-900 transition"
+              />
               <button
-                onClick={() => handleQuickDemoCheckIn('smashzone')}
-                disabled={loading}
-                className="p-3 rounded-lg border border-zinc-200 hover:border-emerald-500 hover:bg-emerald-50/40 text-left transition group"
+                type="submit"
+                disabled={loading || !tokenInput.trim()}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-sm disabled:opacity-50"
               >
-                <div className="font-semibold text-xs text-zinc-900 group-hover:text-emerald-700 flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>SmashZone Pickleball</span>
-                </div>
-                <div className="text-[11px] text-zinc-500 mt-1">
-                  Target: 10 Hours &rarr; 1 Hr Free
-                </div>
-              </button>
-
-              <button
-                onClick={() => handleQuickDemoCheckIn('cafe')}
-                disabled={loading}
-                className="p-3 rounded-lg border border-zinc-200 hover:border-amber-500 hover:bg-amber-50/40 text-left transition group"
-              >
-                <div className="font-semibold text-xs text-zinc-900 group-hover:text-amber-700 flex items-center gap-1.5">
-                  <Coffee className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                  <span>Artisan Roastery &amp; Café</span>
-                </div>
-                <div className="text-[11px] text-zinc-500 mt-1">
-                  Target: 5 Visits &rarr; Free Brew
-                </div>
+                {loading ? 'Verifying...' : 'Check In'}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
     </div>
