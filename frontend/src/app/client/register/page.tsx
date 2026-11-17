@@ -168,8 +168,8 @@ export default function MerchantRegisterPage() {
     setError(null);
 
     const cleanCode = otpCode.trim();
-    if (cleanCode.length !== 6) {
-      setError('Please enter the complete 6-digit verification code.');
+    if (cleanCode.length < 6) {
+      setError('Please enter the complete verification code.');
       return;
     }
 
@@ -484,7 +484,7 @@ export default function MerchantRegisterPage() {
               <div className="relative max-w-xs mx-auto">
                 <input
                   type="text"
-                  maxLength={6}
+                  maxLength={8}
                   required
                   autoFocus
                   value={otpCode}
@@ -497,7 +497,7 @@ export default function MerchantRegisterPage() {
 
             <button
               type="submit"
-              disabled={loading || otpCode.length !== 6 || verificationSuccess}
+              disabled={loading || otpCode.length < 6 || verificationSuccess}
               className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
             >
               {loading ? (

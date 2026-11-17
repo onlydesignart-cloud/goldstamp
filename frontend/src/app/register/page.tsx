@@ -141,8 +141,8 @@ export default function CustomerRegisterPage() {
     setError(null);
 
     const cleanCode = otpCode.trim();
-    if (cleanCode.length !== 6) {
-      setError('Please enter the complete 6-digit verification code.');
+    if (cleanCode.length < 6) {
+      setError('Please enter the complete verification code.');
       return;
     }
 
@@ -512,7 +512,7 @@ export default function CustomerRegisterPage() {
                     <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                      maxLength={6}
+                      maxLength={8}
                       required
                       autoFocus
                       value={otpCode}
@@ -525,7 +525,7 @@ export default function CustomerRegisterPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || otpCode.length !== 6 || verificationSuccess}
+                  disabled={loading || otpCode.length < 6 || verificationSuccess}
                   className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {loading ? 'Verifying Code...' : 'Verify Code & Register'}
