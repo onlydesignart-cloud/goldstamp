@@ -16,77 +16,7 @@ import {
   Store,
   Check,
   Zap,
-  Coffee,
-  Activity,
-  Scissors,
-  Dumbbell,
-  Gamepad2,
-  Star,
-  Layers,
 } from 'lucide-react';
-
-const CATEGORIES = [
-  {
-    id: 'SPORTS',
-    name: 'Sports & Turf',
-    icon: Activity,
-    defaultName: 'Court Milestone Pass',
-    defaultReward: '1 Hour Free Court Session',
-    defaultStamps: 10,
-    desc: 'Collect 1 stamp per court session booking.',
-    color: 'emerald',
-  },
-  {
-    id: 'CAFE',
-    name: 'Café & Bakery',
-    icon: Coffee,
-    defaultName: 'Artisan Coffee Club',
-    defaultReward: '1 Free Artisanal Cappuccino & Pastry',
-    defaultStamps: 5,
-    desc: 'Collect 1 stamp per beverage or bakery order.',
-    color: 'amber',
-  },
-  {
-    id: 'SALON',
-    name: 'Salon & Spa',
-    icon: Scissors,
-    defaultName: 'VIP Grooming Rewards',
-    defaultReward: 'Free Hair Spa / Facial Service',
-    defaultStamps: 5,
-    desc: 'Collect 1 stamp per salon or wellness visit.',
-    color: 'rose',
-  },
-  {
-    id: 'GYM',
-    name: 'Gym & Fitness',
-    icon: Dumbbell,
-    defaultName: 'Workout Streak Pass',
-    defaultReward: 'Free Whey Protein Shake / 1 PT Session',
-    defaultStamps: 12,
-    desc: 'Collect 1 stamp per workout check-in.',
-    color: 'cyan',
-  },
-  {
-    id: 'GAMING',
-    name: 'Gaming & Esports',
-    icon: Gamepad2,
-    defaultName: 'Esports Hours Pass',
-    defaultReward: '2 Free Hours PS5 / PC Slot',
-    defaultStamps: 8,
-    desc: 'Collect 1 stamp per gaming hour booked.',
-    color: 'indigo',
-  },
-  {
-    id: 'GENERAL',
-    name: 'Custom / VIP',
-    icon: Star,
-    defaultName: 'VIP Loyalty Milestone',
-    defaultReward: 'Complimentary VIP Experience Voucher',
-    defaultStamps: 10,
-    desc: 'Collect stamps to unlock special perks.',
-    color: 'purple',
-  },
-];
 
 export default function CreateCampaignSimplePage() {
   const router = useRouter();
@@ -95,22 +25,13 @@ export default function CreateCampaignSimplePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form State
-  const [selectedCategory, setSelectedCategory] = useState<string>('SPORTS');
+  // Simplified Form State (1-Screen, 3 Fields!)
   const [targetStamps, setTargetStamps] = useState<number>(10);
   const [rewardTitle, setRewardTitle] = useState('1 Hour Free Court Session');
-  const [campaignName, setCampaignName] = useState('Court Milestone Pass');
-  const [description, setDescription] = useState('Collect 1 stamp per court booking. Complete the card to unlock your reward!');
+  const [campaignName, setCampaignName] = useState('Loyalty Milestone Club');
+  const [description, setDescription] = useState('Collect 1 stamp per visit. Complete the card to unlock your reward!');
 
   const quickStamps = [5, 8, 10, 12];
-
-  const handleCategorySelect = (cat: typeof CATEGORIES[0]) => {
-    setSelectedCategory(cat.id);
-    setCampaignName(cat.defaultName);
-    setRewardTitle(cat.defaultReward);
-    setTargetStamps(cat.defaultStamps);
-    setDescription(cat.desc);
-  };
 
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,7 +51,6 @@ export default function CreateCampaignSimplePage() {
         name: campaignName || `${targetStamps} Stamps Loyalty Program`,
         description,
         type: 'STAMP',
-        category: selectedCategory,
         conditionType: 'STAMP_COUNT',
         conditionValue: Number(targetStamps),
         rewardTitle: rewardTitle || 'Free Reward',
@@ -152,7 +72,7 @@ export default function CreateCampaignSimplePage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 py-2">
+    <div className="max-w-4xl mx-auto space-y-6 py-2">
       {/* Top Header */}
       <div>
         <Link
@@ -167,12 +87,12 @@ export default function CreateCampaignSimplePage() {
               Create Loyalty Campaign
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Launch dedicated stamp programs for specific departments (e.g. Pickleball Court vs Rooftop Café).
+              Set how many stamps your customers need to earn a free reward. Simple, fast & live in 1 minute.
             </p>
           </div>
           <span className="text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-            <Layers className="w-3 h-3 text-emerald-600" />
-            <span>Multi-Program Support</span>
+            <Zap className="w-3 h-3 text-emerald-600" />
+            <span>Fast Setup</span>
           </span>
         </div>
       </div>
@@ -183,54 +103,8 @@ export default function CreateCampaignSimplePage() {
         </div>
       )}
 
-      {/* Category / Department Switcher */}
-      <div className="space-y-2">
-        <label className="text-xs font-bold text-slate-800 block">
-          Select Department / Offering Category
-        </label>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-          {CATEGORIES.map((cat) => {
-            const Icon = cat.icon;
-            const isSelected = selectedCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => handleCategorySelect(cat)}
-                className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between gap-2 ${
-                  isSelected
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-emerald-500/30'
-                    : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span
-                    className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs ${
-                      isSelected
-                        ? 'bg-emerald-500 text-slate-950 font-bold'
-                        : 'bg-slate-100 text-slate-700'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                  </span>
-                  {isSelected && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                  )}
-                </div>
-                <div>
-                  <div className="text-[11px] font-bold leading-tight">{cat.name}</div>
-                  <div className={`text-[10px] mt-0.5 ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>
-                    {cat.defaultStamps} visits target
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Form: Clean Inputs */}
+        {/* Left Form: 3 Clean Inputs */}
         <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-sm">
           <form onSubmit={handlePublish} className="space-y-5">
             {/* 1. Target Stamps */}
@@ -293,14 +167,14 @@ export default function CreateCampaignSimplePage() {
             <div className="space-y-3 pt-2 border-t border-slate-100">
               <div>
                 <label className="text-xs font-bold text-slate-800 block mb-1">
-                  3. Program Name (Department / Pass Name)
+                  3. Program Name
                 </label>
                 <input
                   type="text"
                   required
                   value={campaignName}
                   onChange={(e) => setCampaignName(e.target.value)}
-                  placeholder="e.g. Court Milestone Pass or Rooftop Café Club"
+                  placeholder="e.g. VIP Club or Weekend Match Rewards"
                   className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 focus:bg-white rounded-xl px-3.5 py-2 text-xs text-slate-900 font-medium transition"
                 />
               </div>
@@ -347,11 +221,9 @@ export default function CreateCampaignSimplePage() {
                 </div>
                 <div>
                   <div className="font-bold text-xs text-white leading-tight">
-                    {business?.name || 'CRICK PICK'}
+                    {business?.name || 'SmashZone Arena'}
                   </div>
-                  <div className="text-[10px] text-emerald-400 font-medium">
-                    {campaignName || 'Active Loyalty Pass'}
-                  </div>
+                  <div className="text-[10px] text-emerald-400 font-medium">Active Loyalty Pass</div>
                 </div>
               </div>
               <span className="text-[10px] font-bold bg-white/10 text-white px-2.5 py-0.5 rounded-full">
@@ -394,7 +266,7 @@ export default function CreateCampaignSimplePage() {
 
             <div className="pt-2 border-t border-white/10 text-[10px] text-slate-400 flex items-center justify-between">
               <span>Automatic QR check-in</span>
-              <span className="text-emerald-400 font-semibold">Instant Confetti & Digital Voucher</span>
+              <span className="text-emerald-400 font-semibold">Simultaneous WhatsApp Alert</span>
             </div>
           </div>
         </div>
