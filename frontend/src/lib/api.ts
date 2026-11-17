@@ -994,6 +994,33 @@ export const api = {
 
   // --- Businesses ---
   getPublicBusinesses: async (paramsStr: string = ''): Promise<ApiResponse<any>> => {
+    if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient();
+        const { data: dbBiz, error } = await supabase
+          .from('Business')
+          .select('*, industry:Industry(*), campaigns:Campaign(*, rules:CampaignRule(*), rewards:Reward(*))')
+          .eq('status', 'ACTIVE');
+
+        if (!error && dbBiz && dbBiz.length > 0) {
+          const formatted = dbBiz.map((b: any) => ({
+            ...b,
+            industry: b.industry?.name || 'Local Commerce',
+            coverImage: b.coverImage || '/images/hero-counter.jpg',
+            activeCampaigns: b.campaigns?.filter((c: any) => c.status === 'ACTIVE') || [],
+            campaign: b.campaigns?.find((c: any) => c.status === 'ACTIVE') || b.campaigns?.[0] || null,
+          }));
+          formatted.forEach((b: any) => mockStore.syncBusiness(b));
+          return {
+            success: true,
+            data: formatted,
+          };
+        }
+      } catch (e) {
+        console.warn('Supabase fetch businesses note:', e);
+      }
+    }
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/businesses${paramsStr ? `?${paramsStr}` : ''}`);
       const json = await res.json();
@@ -1017,6 +1044,36 @@ export const api = {
   },
 
   getBusinessBySlug: async (slug: string): Promise<ApiResponse<any>> => {
+    if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient();
+        const { data: dbBiz, error } = await supabase
+          .from('Business')
+          .select('*, industry:Industry(*), campaigns:Campaign(*, rules:CampaignRule(*), rewards:Reward(*))')
+          .eq('slug', slug)
+          .maybeSingle();
+
+        if (!error && dbBiz) {
+          const activeCampaign = dbBiz.campaigns?.find((c: any) => c.status === 'ACTIVE') || dbBiz.campaigns?.[0] || null;
+          const formatted = {
+            ...dbBiz,
+            industry: dbBiz.industry?.name || 'Local Commerce',
+            coverImage: dbBiz.coverImage || '/images/hero-counter.jpg',
+            activeCampaign,
+            campaign: activeCampaign,
+            rewards: dbBiz.campaigns?.flatMap((c: any) => c.rewards || []) || [],
+          };
+          mockStore.syncBusiness(formatted);
+          return {
+            success: true,
+            data: formatted,
+          };
+        }
+      } catch (e) {
+        console.warn('Supabase getBusinessBySlug note:', e);
+      }
+    }
+
     return asyncWrap(() => {
       const biz = mockStore.getBusinessBySlug(slug);
       if (!biz) throw new Error('Business venue not found');
@@ -1025,8 +1082,28 @@ export const api = {
   },
 
   getMyBusiness: async (): Promise<ApiResponse<any>> => {
+    const userId = getActiveUserId();
+    if (typeof window !== 'undefined' && userId) {
+      try {
+        const supabase = createClient();
+        const { data: dbBiz, error } = await supabase
+          .from('Business')
+          .select('*, industry:Industry(*), campaigns:Campaign(*, rules:CampaignRule(*), rewards:Reward(*))')
+          .eq('ownerId', userId)
+          .maybeSingle();
+
+        if (!error && dbBiz) {
+          return {
+            success: true,
+            data: dbBiz,
+          };
+        }
+      } catch (e) {
+        console.warn('Supabase getMyBusiness note:', e);
+      }
+    }
+
     return asyncWrap(() => {
-      const userId = getActiveUserId();
       return mockStore.getBusinessByOwnerId(userId);
     });
   },
@@ -1082,10 +1159,46 @@ export const api = {
 
   // --- Campaigns ---
   getCampaigns: async (businessId: string): Promise<ApiResponse<any>> => {
+    if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient();
+        let query = supabase.from('Campaign').select('*, rules:CampaignRule(*), rewards:Reward(*)');
+        if (businessId && businessId !== 'biz_smashzone') {
+          query = query.eq('businessId', businessId);
+        }
+        const { data: dbCamps, error } = await query;
+        if (!error && dbCamps && dbCamps.length > 0) {
+          return {
+            success: true,
+            data: dbCamps,
+          };
+        }
+      } catch (err) {
+        console.warn('Supabase getCampaigns error:', err);
+      }
+    }
     return asyncWrap(() => mockStore.getCampaignsByBusiness(businessId));
   },
 
   getCampaign: async (id: string): Promise<ApiResponse<any>> => {
+    if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient();
+        const { data: camp, error } = await supabase
+          .from('Campaign')
+          .select('*, rules:CampaignRule(*), rewards:Reward(*)')
+          .eq('id', id)
+          .maybeSingle();
+        if (!error && camp) {
+          return {
+            success: true,
+            data: camp,
+          };
+        }
+      } catch (err) {
+        console.warn('Supabase getCampaign error:', err);
+      }
+    }
     return asyncWrap(() => {
       const db = mockStore.getRaw();
       return db.campaigns.find((c) => c.id === id) || db.campaigns[0];
@@ -1093,10 +1206,131 @@ export const api = {
   },
 
   createCampaign: async (businessId: string, data: any): Promise<ApiResponse<any>> => {
-    return asyncWrap(() => mockStore.createCampaign(businessId, data), 'Campaign created successfully');
+    return asyncWrap(async () => {
+      const campId = `camp_${Date.now()}`;
+      const rewardId = `rew_${Date.now()}`;
+      const ruleId = `rule_${Date.now()}`;
+
+      // 1. Sync into in-memory mock store
+      const mockResult = mockStore.createCampaign(businessId, data);
+
+      // 2. Direct Write into Live Supabase PostgreSQL
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+
+          // Ensure business exists in DB to prevent foreign key violations
+          let validBizId = businessId;
+          const { data: checkBiz } = await supabase.from('Business').select('id').eq('id', businessId).limit(1);
+          if (!checkBiz || checkBiz.length === 0) {
+            const merchantUser = localStorage.getItem('goldstamp_merchant_user');
+            const ownerId = merchantUser ? safeJsonParse<any>(merchantUser, null)?.id : null;
+            let foundBiz: any = null;
+            if (ownerId) {
+              const { data: ob } = await supabase.from('Business').select('id').eq('ownerId', ownerId).limit(1);
+              if (ob && ob.length > 0) foundBiz = ob[0];
+            }
+            if (!foundBiz) {
+              const { data: anyB } = await supabase.from('Business').select('id').limit(1);
+              if (anyB && anyB.length > 0) foundBiz = anyB[0];
+            }
+            if (foundBiz) {
+              validBizId = foundBiz.id;
+            } else {
+              validBizId = 'biz_default';
+              await supabase.from('Business').upsert({
+                id: validBizId,
+                name: 'Main Business Venue',
+                slug: 'main-business-venue',
+                status: 'ACTIVE',
+                updatedAt: new Date().toISOString(),
+              });
+            }
+          }
+
+          // A. Insert Campaign
+          const { error: cErr } = await supabase.from('Campaign').insert({
+            id: campId,
+            businessId: validBizId,
+            name: data.name,
+            description: data.description || 'Collect 1 stamp per visit. Complete the card to unlock your reward!',
+            type: data.type || 'STAMP',
+            status: 'ACTIVE',
+            startDate: new Date().toISOString(),
+            isRecurring: data.isRecurring !== undefined ? data.isRecurring : true,
+            updatedAt: new Date().toISOString(),
+          });
+          if (cErr) console.warn('Supabase Campaign insert error:', cErr);
+
+          // B. Insert CampaignRule
+          const { error: rErr } = await supabase.from('CampaignRule').insert({
+            id: ruleId,
+            campaignId: campId,
+            conditionType: data.conditionType || 'STAMP_COUNT',
+            conditionValue: Number(data.conditionValue || 10),
+            rewardType: data.rewardType || 'FREE_SERVICE',
+            rewardValue: data.rewardValue || data.rewardTitle || 'Loyalty Reward',
+          });
+          if (rErr) console.warn('Supabase CampaignRule insert error:', rErr);
+
+          // C. Insert Reward
+          const { error: rwErr } = await supabase.from('Reward').insert({
+            id: rewardId,
+            businessId: validBizId,
+            campaignId: campId,
+            title: data.rewardTitle || 'Loyalty Reward',
+            description: data.description || 'Redeem after completing your stamp card',
+            type: data.rewardType || 'FREE_SERVICE',
+            value: data.rewardValue || data.rewardTitle || 'Loyalty Reward',
+            status: 'AVAILABLE',
+            updatedAt: new Date().toISOString(),
+          });
+          if (rwErr) console.warn('Supabase Reward insert error:', rwErr);
+
+          return {
+            id: campId,
+            businessId: validBizId,
+            name: data.name,
+            description: data.description,
+            type: data.type || 'STAMP',
+            status: 'ACTIVE',
+            rules: [{
+              id: ruleId,
+              campaignId: campId,
+              conditionType: data.conditionType || 'STAMP_COUNT',
+              conditionValue: Number(data.conditionValue || 10),
+              rewardType: data.rewardType || 'FREE_SERVICE',
+              rewardValue: data.rewardValue || data.rewardTitle || 'Loyalty Reward',
+            }],
+            rewards: [{
+              id: rewardId,
+              businessId: validBizId,
+              campaignId: campId,
+              title: data.rewardTitle || 'Loyalty Reward',
+              description: data.description,
+              type: data.rewardType || 'FREE_SERVICE',
+              value: data.rewardValue || data.rewardTitle || 'Loyalty Reward',
+              status: 'AVAILABLE',
+            }],
+          };
+        } catch (dbErr) {
+          console.warn('Direct Supabase createCampaign note:', dbErr);
+        }
+      }
+
+      return mockResult;
+    }, 'Campaign created successfully');
   },
 
   updateCampaignStatus: async (id: string, status: string): Promise<ApiResponse<any>> => {
+    if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient();
+        await supabase.from('Campaign').update({ status, updatedAt: new Date().toISOString() }).eq('id', id);
+      } catch (e) {
+        console.warn('Supabase updateCampaignStatus note:', e);
+      }
+    }
     return asyncWrap(() => {
       const db = mockStore.getRaw();
       const cmp = db.campaigns.find((c) => c.id === id);
@@ -1143,7 +1377,7 @@ export const api = {
 
   // --- Check-In Engine (Atomic Milestone & Stamps) ---
   checkIn: async (data: { token: string; deviceInfo?: string }): Promise<ApiResponse<any>> => {
-    return asyncWrap(() => {
+    return asyncWrap(async () => {
       if (!checkClientRateLimit('client_checkin', 1000)) {
         throw new Error('Please wait a moment before checking in again.');
       }
@@ -1155,12 +1389,74 @@ export const api = {
           if (parsed?.id) customerId = parsed.id;
         }
       }
-      return mockStore.processCheckIn(data.token, customerId || 'usr_customer_alex');
+
+      const activeCustId = customerId || 'usr_customer_alex';
+      const mockResult = mockStore.processCheckIn(data.token, activeCustId);
+
+      // Persist in Supabase PostgreSQL
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+          const bizId = (mockResult as any).business?.id || 'biz_test';
+          const campId = (mockResult as any).campaign?.id || null;
+          const visitId = `vis_${Date.now()}`;
+          const stampId = `st_${Date.now()}`;
+
+          // 1. Insert Visit
+          await supabase.from('Visit').insert({
+            id: visitId,
+            userId: activeCustId,
+            businessId: bizId,
+            campaignId: campId,
+            verificationMethod: 'QR',
+            deviceInfo: data.deviceInfo || 'Customer Mobile Web',
+          });
+
+          // 2. Insert StampTransaction if campaign exists
+          if (campId) {
+            await supabase.from('StampTransaction').insert({
+              id: stampId,
+              userId: activeCustId,
+              businessId: bizId,
+              campaignId: campId,
+              visitId: visitId,
+              verificationMethod: 'QR',
+            });
+          }
+
+          // 3. Upsert CustomerBusiness stats
+          const { data: existingCb } = await supabase
+            .from('CustomerBusiness')
+            .select('*')
+            .eq('userId', activeCustId)
+            .eq('businessId', bizId)
+            .maybeSingle();
+
+          const currentStamps = (existingCb?.totalStamps || 0) + 1;
+          const currentVisits = (existingCb?.totalVisits || 0) + 1;
+          const currentPoints = (existingCb?.totalPoints || 0) + 10;
+
+          await supabase.from('CustomerBusiness').upsert({
+            id: existingCb?.id || `cb_${activeCustId}_${bizId}`,
+            userId: activeCustId,
+            businessId: bizId,
+            status: 'ACTIVE',
+            totalStamps: currentStamps,
+            totalVisits: currentVisits,
+            totalPoints: currentPoints,
+            lastVisitAt: new Date().toISOString(),
+          });
+        } catch (dbErr) {
+          console.warn('Supabase checkin note:', dbErr);
+        }
+      }
+
+      return mockResult;
     });
   },
 
   processCheckIn: async (payload: any): Promise<ApiResponse<any>> => {
-    return asyncWrap(() => {
+    return asyncWrap(async () => {
       if (!checkClientRateLimit('client_checkin', 1000)) {
         throw new Error('Please wait a moment before checking in again.');
       }
@@ -1172,7 +1468,60 @@ export const api = {
           if (parsed?.id) customerId = parsed.id;
         }
       }
-      return mockStore.processCheckIn(payload, customerId || 'usr_customer_alex');
+      const activeCustId = customerId || 'usr_customer_alex';
+      const mockResult = mockStore.processCheckIn(payload, activeCustId);
+
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+          const bizId = (mockResult as any).business?.id || 'biz_test';
+          const campId = (mockResult as any).campaign?.id || null;
+          const visitId = `vis_${Date.now()}`;
+          const stampId = `st_${Date.now()}`;
+
+          await supabase.from('Visit').insert({
+            id: visitId,
+            userId: activeCustId,
+            businessId: bizId,
+            campaignId: campId,
+            verificationMethod: 'QR',
+            deviceInfo: 'Counter QR Terminal',
+          });
+
+          if (campId) {
+            await supabase.from('StampTransaction').insert({
+              id: stampId,
+              userId: activeCustId,
+              businessId: bizId,
+              campaignId: campId,
+              visitId: visitId,
+              verificationMethod: 'QR',
+            });
+          }
+
+          const { data: existingCb } = await supabase
+            .from('CustomerBusiness')
+            .select('*')
+            .eq('userId', activeCustId)
+            .eq('businessId', bizId)
+            .maybeSingle();
+
+          await supabase.from('CustomerBusiness').upsert({
+            id: existingCb?.id || `cb_${activeCustId}_${bizId}`,
+            userId: activeCustId,
+            businessId: bizId,
+            status: 'ACTIVE',
+            totalStamps: (existingCb?.totalStamps || 0) + 1,
+            totalVisits: (existingCb?.totalVisits || 0) + 1,
+            totalPoints: (existingCb?.totalPoints || 0) + 10,
+            lastVisitAt: new Date().toISOString(),
+          });
+        } catch (dbErr) {
+          console.warn('Supabase processCheckIn note:', dbErr);
+        }
+      }
+
+      return mockResult;
     });
   },
 
@@ -1185,18 +1534,55 @@ export const api = {
 
   // --- Rewards & Redemptions ---
   getBusinessRewards: async (businessId: string): Promise<ApiResponse<any>> => {
+    if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient();
+        const { data: dbRewards, error } = await supabase
+          .from('Reward')
+          .select('*')
+          .eq('businessId', businessId)
+          .eq('status', 'AVAILABLE');
+
+        if (!error && dbRewards && dbRewards.length > 0) {
+          return {
+            success: true,
+            data: dbRewards,
+          };
+        }
+      } catch (e) {
+        console.warn('Supabase getBusinessRewards note:', e);
+      }
+    }
     return asyncWrap(() => mockStore.getRaw().rewards.filter((r) => r.businessId === businessId));
   },
 
   getMyRewards: async (all = false): Promise<ApiResponse<any>> => {
+    const userId = getActiveUserId();
+    if (typeof window !== 'undefined' && userId) {
+      try {
+        const supabase = createClient();
+        const { data: redemptions, error } = await supabase
+          .from('RewardRedemption')
+          .select('*, reward:Reward(*), business:Business(*)')
+          .eq('userId', userId);
+
+        if (!error && redemptions && redemptions.length > 0) {
+          return {
+            success: true,
+            data: redemptions,
+          };
+        }
+      } catch (e) {
+        console.warn('Supabase getMyRewards note:', e);
+      }
+    }
     return asyncWrap(() => {
-      const userId = getActiveUserId();
       return mockStore.getCustomerRedemptions(userId);
     });
   },
 
   claimReward: async (rewardId: string): Promise<ApiResponse<any>> => {
-    return asyncWrap(() => {
+    return asyncWrap(async () => {
       if (!checkClientRateLimit(`claim_${rewardId}`, 2000)) {
         throw new Error('Reward claim in progress. Please wait a moment.');
       }
@@ -1208,32 +1594,153 @@ export const api = {
           if (parsed?.id) customerId = parsed.id;
         }
       }
-      return mockStore.claimReward(customerId || 'usr_customer_alex', rewardId);
+      const activeCustId = customerId || 'usr_customer_alex';
+      const mockResult = mockStore.claimReward(activeCustId, rewardId);
+
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+          const { data: rwd } = await supabase.from('Reward').select('*').eq('id', rewardId).maybeSingle();
+          if (rwd) {
+            const voucherCode = `GS-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+            await supabase.from('RewardRedemption').insert({
+              id: `rdm_${Date.now()}`,
+              rewardId,
+              userId: activeCustId,
+              businessId: rwd.businessId,
+              code: voucherCode,
+              status: 'CLAIMED',
+              claimedAt: new Date().toISOString(),
+            });
+          }
+        } catch (dbErr) {
+          console.warn('Supabase claimReward note:', dbErr);
+        }
+      }
+
+      return mockResult;
     }, 'Reward claimed');
   },
 
   getBusinessRedemptions: async (businessId: string): Promise<ApiResponse<any>> => {
+    if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient();
+        const { data: dbRdm, error } = await supabase
+          .from('RewardRedemption')
+          .select('*, reward:Reward(*), user:User(*)')
+          .eq('businessId', businessId);
+
+        if (!error && dbRdm && dbRdm.length > 0) {
+          return {
+            success: true,
+            data: dbRdm,
+          };
+        }
+      } catch (e) {
+        console.warn('Supabase getBusinessRedemptions note:', e);
+      }
+    }
     return asyncWrap(() => mockStore.getBusinessRedemptions(businessId));
   },
 
   verifyRedemption: async (businessId: string, code: string): Promise<ApiResponse<any>> => {
-    return asyncWrap(() => {
+    return asyncWrap(async () => {
       const cleanCode = sanitizeVoucherCode(code);
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+          await supabase
+            .from('RewardRedemption')
+            .update({
+              status: 'REDEEMED',
+              redeemedAt: new Date().toISOString(),
+            })
+            .eq('code', cleanCode);
+        } catch (e) {
+          console.warn('Supabase verifyRedemption note:', e);
+        }
+      }
       return mockStore.verifyRedemption(businessId, cleanCode);
     }, 'Reward redeemed successfully');
   },
 
   // --- Customer Loyalty Wallet ---
   getMyLoyalty: async (): Promise<ApiResponse<any>> => {
+    const userId = getActiveUserId();
+    if (typeof window !== 'undefined' && userId) {
+      try {
+        const supabase = createClient();
+        const { data: memberships, error } = await supabase
+          .from('CustomerBusiness')
+          .select('*, business:Business(*, campaigns:Campaign(*, rules:CampaignRule(*), rewards:Reward(*)))')
+          .eq('userId', userId);
+
+        if (!error && memberships && memberships.length > 0) {
+          const formatted = memberships.map((m: any) => {
+            const biz = m.business;
+            const activeCamp = biz?.campaigns?.find((c: any) => c.status === 'ACTIVE') || biz?.campaigns?.[0] || null;
+            const rule = activeCamp?.rules?.[0];
+            const reward = activeCamp?.rewards?.[0];
+
+            return {
+              id: m.id,
+              businessId: m.businessId,
+              userId: m.userId,
+              status: m.status,
+              totalVisits: m.totalVisits || 0,
+              totalStamps: m.totalStamps || 0,
+              totalPoints: m.totalPoints || 0,
+              lastVisitAt: m.lastVisitAt,
+              joinedAt: m.joinedAt,
+              business: biz,
+              campaign: activeCamp,
+              activeCampaign: activeCamp ? {
+                id: activeCamp.id,
+                name: activeCamp.name,
+                type: activeCamp.type,
+                targetStamps: rule?.conditionValue || 10,
+                rewardTitle: reward?.title || 'Loyalty Reward',
+                rewardId: reward?.id,
+              } : null,
+            };
+          });
+          return {
+            success: true,
+            data: formatted,
+          };
+        }
+      } catch (e) {
+        console.warn('Supabase getMyLoyalty note:', e);
+      }
+    }
+
     return asyncWrap(() => {
-      const userId = getActiveUserId();
       return mockStore.getCustomerLoyalty(userId);
     });
   },
 
   joinProgram: async (businessId: string): Promise<ApiResponse<any>> => {
-    return asyncWrap(() => {
+    return asyncWrap(async () => {
       const userId = getActiveUserId();
+      if (typeof window !== 'undefined' && userId) {
+        try {
+          const supabase = createClient();
+          const membershipId = `cb_${userId}_${businessId}`;
+          await supabase.from('CustomerBusiness').upsert({
+            id: membershipId,
+            userId,
+            businessId,
+            status: 'ACTIVE',
+            totalVisits: 0,
+            totalStamps: 0,
+            totalPoints: 0,
+            joinedAt: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn('Supabase joinProgram note:', e);
+        }
+      }
       return mockStore.joinProgram(userId, businessId);
     }, 'Successfully joined loyalty program');
   },

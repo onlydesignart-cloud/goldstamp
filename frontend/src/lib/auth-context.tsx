@@ -101,13 +101,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (stored && token) {
           try {
             const parsed = JSON.parse(stored);
-            currentMerchant = mockStore.getUserById(parsed.id) || mockStore.getUserByEmail(parsed.email);
+            currentMerchant = mockStore.getUserById(parsed.id) || mockStore.getUserByEmail(parsed.email) || parsed;
           } catch {}
         }
 
         if (currentMerchant) {
           setUser(currentMerchant);
-          const biz = mockStore.getBusinessByOwnerId(currentMerchant.id);
+          let biz = mockStore.getBusinessByOwnerId(currentMerchant.id);
+          if (!biz) {
+            const storedBiz = localStorage.getItem('goldstamp_merchant_business');
+            if (storedBiz) {
+              try { biz = JSON.parse(storedBiz); } catch {}
+            }
+          }
+
+          if (typeof window !== 'undefined') {
+            try {
+              const supabase = createClient();
+              const { data: dbBiz } = await supabase.from('Business').select('*').eq('ownerId', currentMerchant.id).limit(1);
+              if (dbBiz && dbBiz.length > 0) {
+                biz = { ...biz, ...dbBiz[0] };
+                localStorage.setItem('goldstamp_merchant_business', JSON.stringify(biz));
+              }
+            } catch (supaErr) {
+              console.warn('Supabase business fetch note:', supaErr);
+            }
+          }
+
           setBusiness(biz || null);
         } else {
           setUser(null);
@@ -135,7 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (stored && token) {
           try {
             const parsed = JSON.parse(stored);
-            resolvedUser = mockStore.getUserById(parsed.id) || mockStore.getUserByEmail(parsed.email);
+            resolvedUser = mockStore.getUserById(parsed.id) || mockStore.getUserByEmail(parsed.email) || parsed;
           } catch {}
         }
 

@@ -35,7 +35,14 @@ export default function CreateCampaignSimplePage() {
 
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
-    const targetBizId = business?.id || 'biz_smashzone';
+    let targetBizId = business?.id;
+    if (!targetBizId && typeof window !== 'undefined') {
+      try {
+        const storedBiz = localStorage.getItem('goldstamp_merchant_business');
+        if (storedBiz) targetBizId = JSON.parse(storedBiz).id;
+      } catch {}
+    }
+    if (!targetBizId) targetBizId = 'biz_test';
     setLoading(true);
     setError(null);
 

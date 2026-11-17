@@ -13,7 +13,14 @@ export default function ClientCampaignsPage() {
 
   useEffect(() => {
     async function load() {
-      const targetBizId = business?.id || 'biz_smashzone';
+      let targetBizId = business?.id;
+      if (!targetBizId && typeof window !== 'undefined') {
+        try {
+          const storedBiz = localStorage.getItem('goldstamp_merchant_business');
+          if (storedBiz) targetBizId = JSON.parse(storedBiz).id;
+        } catch {}
+      }
+      if (!targetBizId) targetBizId = 'biz_test';
       setLoading(true);
       try {
         const res = await api.getCampaigns(targetBizId);

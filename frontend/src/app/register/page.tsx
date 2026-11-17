@@ -141,8 +141,8 @@ export default function CustomerRegisterPage() {
     setError(null);
 
     const cleanCode = otpCode.trim();
-    if (cleanCode.length !== 8) {
-      setError('Please enter the complete 8-digit verification code.');
+    if (cleanCode.length !== 6) {
+      setError('Please enter the complete 6-digit verification code.');
       return;
     }
 
@@ -496,7 +496,7 @@ export default function CustomerRegisterPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-semibold text-slate-700">
-                      Enter 8-Digit Verification Code
+                      Enter 6-Digit Verification Code
                     </label>
                     <button
                       type="button"
@@ -512,12 +512,12 @@ export default function CustomerRegisterPage() {
                     <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                      maxLength={8}
+                      maxLength={6}
                       required
                       autoFocus
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
-                      placeholder="e.g. 86588966"
+                      placeholder="e.g. 588966"
                       className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-600 rounded-xl pl-10 pr-4 py-3 text-base tracking-widest font-mono text-center font-bold text-slate-900 transition"
                     />
                   </div>
@@ -525,7 +525,7 @@ export default function CustomerRegisterPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || otpCode.length !== 8 || verificationSuccess}
+                  disabled={loading || otpCode.length !== 6 || verificationSuccess}
                   className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {loading ? 'Verifying Code...' : 'Verify Code & Register'}
