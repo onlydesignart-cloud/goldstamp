@@ -141,8 +141,8 @@ export default function CustomerRegisterPage() {
     setError(null);
 
     const cleanCode = otpCode.trim();
-    if (cleanCode.length !== 6) {
-      setError('Please enter the complete 6-digit verification code.');
+    if (cleanCode.length < 4) {
+      setError('Please enter your verification code.');
       return;
     }
 
@@ -280,7 +280,7 @@ export default function CustomerRegisterPage() {
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
             {step === 'form'
               ? 'Create your digital loyalty passport to collect stamps & unlock vouchers.'
-              : `Enter the 6-digit authentication code sent to ${formData.email}`}
+              : `Enter the verification code sent to ${formData.email}`}
           </p>
         </div>
 
@@ -478,7 +478,7 @@ export default function CustomerRegisterPage() {
             </form>
           )}
 
-          {/* STEP 2: 6-DIGIT EMAIL CODE AUTHENTICATION (SECURED ANTI-BYPASS) */}
+          {/* STEP 2: EMAIL CODE AUTHENTICATION (SECURED ANTI-BYPASS) */}
           {step === 'verify' && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <div className="bg-amber-50/80 border border-amber-200/80 rounded-2xl p-3 text-xs text-amber-900 flex items-start gap-2.5">
@@ -486,7 +486,7 @@ export default function CustomerRegisterPage() {
                 <div>
                   <span className="font-bold">Cryptographically Secured Verification</span>
                   <p className="text-amber-800 text-[11px] mt-0.5">
-                    Account credentials remain uncommitted until verified against the 6-digit challenge code sent to{' '}
+                    Account credentials remain uncommitted until verified against the challenge code sent to{' '}
                     <strong className="text-amber-950 font-semibold">{formData.email}</strong>.
                   </p>
                 </div>
@@ -496,7 +496,7 @@ export default function CustomerRegisterPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-semibold text-slate-700">
-                      Enter 6-Digit Verification Code
+                      Enter Verification Code (4 Digits)
                     </label>
                     <button
                       type="button"
@@ -512,12 +512,12 @@ export default function CustomerRegisterPage() {
                     <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                      maxLength={6}
+                      maxLength={8}
                       required
                       autoFocus
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
-                      placeholder="e.g. 588966"
+                      placeholder="e.g. 1234"
                       className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-600 rounded-xl pl-10 pr-4 py-3 text-base tracking-widest font-mono text-center font-bold text-slate-900 transition"
                     />
                   </div>
@@ -525,7 +525,7 @@ export default function CustomerRegisterPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || otpCode.length !== 6 || verificationSuccess}
+                  disabled={loading || otpCode.length < 4 || verificationSuccess}
                   className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {loading ? 'Verifying Code...' : 'Verify Code & Register'}

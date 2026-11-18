@@ -351,9 +351,10 @@ export default function ClientSettingsPage() {
                 </p>
                 <input
                   type="text"
-                  maxLength={6}
+                  maxLength={4}
                   value={terminalPin}
-                  onChange={(e) => setTerminalPin(e.target.value)}
+                  onChange={(e) => setTerminalPin(e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder="1234"
                   className="w-32 font-mono tracking-widest text-center px-3.5 py-2 rounded-xl border border-slate-200 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 />
               </div>
