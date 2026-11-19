@@ -18,6 +18,7 @@ import {
   Clock,
   Building2,
   Calendar,
+  QrCode,
 } from 'lucide-react';
 
 export default function BusinessProfilePage() {
@@ -110,7 +111,7 @@ export default function BusinessProfilePage() {
   const primaryReward = primaryCampaign?.rewards?.[0];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 md:pb-12 space-y-6 sm:space-y-8">
       <Link
         href="/discover"
         className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 transition"
@@ -121,7 +122,7 @@ export default function BusinessProfilePage() {
 
       {/* Cover Image & Header Banner */}
       <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-        <div className="h-64 sm:h-80 relative bg-slate-900 overflow-hidden">
+        <div className="h-48 sm:h-72 relative bg-slate-900 overflow-hidden">
           {business.coverImage ? (
             <img
               src={business.coverImage}
@@ -138,10 +139,10 @@ export default function BusinessProfilePage() {
           </span>
         </div>
 
-        <div className="p-6 sm:p-8 relative">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-16 sm:-mt-20 mb-6">
-            <div className="flex items-end gap-4">
-              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white border-4 border-white shadow-xl overflow-hidden shrink-0">
+        <div className="p-5 sm:p-8 relative">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-14 sm:-mt-20 mb-6">
+            <div className="flex items-end gap-3.5 sm:gap-4">
+              <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl bg-white border-4 border-white shadow-xl overflow-hidden shrink-0">
                 {business.logo ? (
                   <img
                     src={business.logo}
@@ -149,21 +150,21 @@ export default function BusinessProfilePage() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-emerald-600 text-white font-bold text-2xl">
+                  <div className="w-full h-full flex items-center justify-center bg-emerald-600 text-white font-extrabold text-2xl sm:text-3xl">
                     {business.name.substring(0, 2).toUpperCase()}
                   </div>
                 )}
               </div>
-              <div className="pb-1">
-                <h1 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight">
+              <div className="pb-1 min-w-0">
+                <h1 className="text-xl sm:text-3xl font-black text-slate-950 leading-tight truncate">
                   {business.name}
                 </h1>
                 {business.city && (
                   <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1 font-medium">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                    <span>
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="truncate">
                       {business.address ? `${business.address}, ` : ''}
-                      {business.city}, {business.state}
+                      {business.city}, {business.state || business.country}
                     </span>
                   </div>
                 )}
@@ -171,25 +172,25 @@ export default function BusinessProfilePage() {
             </div>
 
             {/* Action CTA */}
-            <div className="shrink-0 flex items-center gap-2">
+            <div className="shrink-0 w-full sm:w-auto">
               {isJoined ? (
-                <div className="flex items-center gap-2">
-                  <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl font-bold text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Program Active</span>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="inline-flex items-center justify-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex-1 sm:flex-initial">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Member Active</span>
                   </div>
                   <Link
                     href="/loyalty"
-                    className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition shadow-sm"
+                    className="inline-flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shadow-sm flex-1 sm:flex-initial"
                   >
-                    <span>View Card in Wallet</span>
+                    <span>Wallet Pass</span>
                   </Link>
                 </div>
               ) : (
                 <button
                   onClick={handleJoin}
                   disabled={joining}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-6 py-3 rounded-xl shadow-lg shadow-emerald-500/25 flex items-center gap-2 transition hover:scale-105 active:scale-95 disabled:opacity-50"
+                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm px-6 py-3 rounded-xl shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition hover:scale-105 active:scale-95 disabled:opacity-50"
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>{joining ? 'Joining...' : 'Join Loyalty Program'}</span>
@@ -198,12 +199,12 @@ export default function BusinessProfilePage() {
             </div>
           </div>
 
-          <p className="text-sm text-slate-600 leading-relaxed max-w-3xl">
-            {business.description || 'Welcome to our loyalty program! Earn stamps on every visit to unlock exclusive rewards.'}
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-3xl">
+            {business.description || 'Welcome to our digital loyalty program! Collect stamps on every counter check-in to unlock exclusive milestone rewards.'}
           </p>
 
           {/* Quick Contact Chips */}
-          <div className="mt-6 pt-6 border-t border-slate-100 flex flex-wrap items-center gap-4 text-xs text-slate-600">
+          <div className="mt-5 pt-5 border-t border-slate-100 flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-slate-600">
             {business.phone && (
               <span className="flex items-center gap-1.5">
                 <Phone className="w-3.5 h-3.5 text-slate-400" />
@@ -229,77 +230,138 @@ export default function BusinessProfilePage() {
             )}
             <span className="flex items-center gap-1.5 text-slate-500">
               <Clock className="w-3.5 h-3.5" />
-              Check-in cooldown: {business.cooldownMinutes} mins
+              Cooldown: {business.cooldownMinutes || 30} mins
             </span>
           </div>
         </div>
       </div>
 
-      {/* If Joined: Show Current Active Digital Stamp Card */}
-      {isJoined && membership && (
-        <section className="space-y-4">
-          <h2 className="text-xl font-bold text-slate-900">Your Digital Stamp Card</h2>
-          <StampCard
-            businessName={membership.businessName || business.name}
-            businessSlug={membership.businessSlug || business.slug}
-            businessLogo={membership.businessLogo || business.logo}
-            industry={membership.industry || business.industry?.name || 'Local Business'}
-            campaignName={membership.activeCampaign?.name || business.campaigns?.[0]?.name || 'Loyalty Program'}
-            rewardTitle={membership.activeCampaign?.rewardTitle || business.campaigns?.[0]?.rewards?.[0]?.title || 'Milestone Reward'}
-            currentStamps={membership.currentStamps ?? membership.cycleStamps ?? 0}
-            targetStamps={membership.targetVisits ?? membership.milestoneTarget ?? 10}
-            totalVisits={membership.totalVisits || 0}
-            totalPoints={membership.totalPoints || 0}
-            lastVisitAt={membership.lastVisitAt}
-          />
-        </section>
-      )}
+      {/* Accurate & Compact Digital Stamp Card */}
+      <section className="bg-slate-50/80 border border-slate-200/90 rounded-3xl p-5 sm:p-7 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-100/70 border border-emerald-200/60 px-2 py-0.5 rounded-md">
+                {isJoined ? 'Active Member Pass' : 'Program Preview'}
+              </span>
+            </div>
+            <h2 className="text-lg sm:text-xl font-extrabold text-slate-950 tracking-tight mt-1">
+              Digital Stamp Card
+            </h2>
+            <p className="text-xs text-slate-500">
+              {isJoined
+                ? 'Your stamps are recorded instantly upon scanning counter QR codes.'
+                : 'Join this program to start collecting stamps and unlocking milestone rewards.'}
+            </p>
+          </div>
 
-      {/* Active Campaigns and Rewards */}
-      <section className="space-y-4">
-        <h2 className="text-xl font-bold text-slate-900">Available Campaigns & Rewards</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {business.campaigns?.map((camp: any) => {
-            const reward = camp.rewards?.[0];
-            const rule = camp.rules?.[0];
-
-            return (
-              <div
-                key={camp.id}
-                className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between"
+          {isJoined && (
+            <div className="shrink-0">
+              <Link
+                href="/checkin"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95"
               >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                      {camp.type} Program
-                    </span>
-                    <span className="text-xs text-slate-400">Recurring: {camp.isRecurring ? 'Yes' : 'No'}</span>
-                  </div>
-                  <h3 className="font-bold text-slate-900 text-base">{camp.name}</h3>
-                  <p className="text-xs text-slate-500 mt-1">{camp.description}</p>
-                </div>
+                <QrCode className="w-4 h-4" />
+                <span>Scan Counter QR</span>
+              </Link>
+            </div>
+          )}
+        </div>
 
-                <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <Gift className="w-4 h-4 text-emerald-600" />
-                    <span className="font-semibold text-slate-800">
-                      {reward ? reward.title : 'Milestone Reward'}
+        {/* Scaled Compact Card Container */}
+        <div className="max-w-md mx-auto w-full pt-1">
+          <StampCard
+            compact
+            previewMode={!isJoined}
+            businessName={membership?.businessName || business.name}
+            businessSlug={membership?.businessSlug || business.slug}
+            businessLogo={membership?.businessLogo || business.logo}
+            industry={membership?.industry || business.industry?.name || 'Local Business'}
+            campaignName={membership?.activeCampaign?.name || primaryCampaign?.name || 'Loyalty Milestone Club'}
+            rewardTitle={membership?.activeCampaign?.rewardTitle || primaryReward?.title || primaryCampaign?.rewardTitle || 'Free Milestone Perk'}
+            currentStamps={isJoined ? (membership?.currentStamps ?? membership?.cycleStamps ?? 0) : 0}
+            targetStamps={membership?.targetVisits ?? primaryCampaign?.targetVisits ?? 10}
+            totalVisits={membership?.totalVisits || 0}
+            totalPoints={membership?.totalPoints || 0}
+            lastVisitAt={membership?.lastVisitAt}
+          />
+        </div>
+      </section>
+
+      {/* Available Campaigns & Rewards */}
+      <section className="space-y-4">
+        <h2 className="text-lg sm:text-xl font-extrabold text-slate-950 tracking-tight">Available Campaigns & Rewards</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {business.campaigns && business.campaigns.length > 0 ? (
+            business.campaigns.map((camp: any) => {
+              const reward = camp.rewards?.[0];
+              const rule = camp.rules?.[0];
+
+              return (
+                <div
+                  key={camp.id}
+                  className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="bg-emerald-50 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-100">
+                        {camp.type || 'STAMP'} Program
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-medium">Target: {camp.targetVisits || 10} Visits</span>
+                    </div>
+                    <h3 className="font-extrabold text-slate-900 text-base">{camp.name}</h3>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">{camp.description || 'Visit the counter to collect stamps and earn exclusive rewards.'}</p>
+                  </div>
+
+                  <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <Gift className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="font-bold text-slate-900 truncate">
+                        {reward?.title || camp.rewardTitle || 'Milestone Free Perk'}
+                      </span>
+                    </div>
+                    <span className="font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+                      {camp.targetVisits || rule?.conditionValue || 10} Stamps
                     </span>
                   </div>
-                  <span className="font-bold text-emerald-600">
-                    Target: {rule?.conditionValue || 10} {camp.type.toLowerCase()}s
+                </div>
+              );
+            })
+          ) : (
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="bg-emerald-50 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-100">
+                    STAMP Program
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-medium">Standard Program</span>
+                </div>
+                <h3 className="font-extrabold text-slate-900 text-base">Loyalty Milestone Club</h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Collect digital stamps on every counter check-in to unlock complimentary perks.
+                </p>
+              </div>
+
+              <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <Gift className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-bold text-slate-900">
+                    Complimentary Reward on 10th Stamp
                   </span>
                 </div>
+                <span className="font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+                  10 Stamps
+                </span>
               </div>
-            );
-          })}
+            </div>
+          )}
         </div>
       </section>
 
       {/* Branches if available */}
       {business.branches && business.branches.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-xl font-bold text-slate-900">Locations & Branches</h2>
+          <h2 className="text-lg sm:text-xl font-extrabold text-slate-950 tracking-tight">Locations & Branches</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {business.branches.map((branch: any) => (
               <div key={branch.id} className="bg-white p-4 rounded-xl border border-slate-200 text-xs space-y-1">

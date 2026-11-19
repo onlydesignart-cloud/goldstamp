@@ -103,7 +103,7 @@ export default function DiscoverPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 md:pb-10 space-y-6 sm:space-y-8">
       {/* Header */}
       <div>
         <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full mb-2">
@@ -198,7 +198,7 @@ export default function DiscoverPage() {
 
                   <div className="p-5">
                     <div className="flex items-start gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 overflow-hidden -mt-10 relative z-10 shadow-sm shrink-0">
+                      <div className="w-14 h-14 rounded-2xl bg-white border-2 border-white shadow-md overflow-hidden -mt-11 relative z-10 shrink-0">
                         {biz.logo ? (
                           <img
                             src={biz.logo}
@@ -206,49 +206,52 @@ export default function DiscoverPage() {
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-emerald-50 text-emerald-700 font-bold text-base">
+                          <div className="w-full h-full flex items-center justify-center bg-emerald-50 text-emerald-700 font-extrabold text-lg">
                             {biz.name.substring(0, 2).toUpperCase()}
                           </div>
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 pt-0.5">
                         <Link
                           href={`/business/${biz.slug}`}
-                          className="font-bold text-slate-900 text-base leading-tight hover:text-emerald-600 transition block truncate"
+                          className="font-extrabold text-slate-950 text-lg sm:text-xl leading-tight hover:text-emerald-600 transition block truncate"
                         >
                           {biz.name}
                         </Link>
                         {biz.city && (
-                          <span className="flex items-center gap-1 text-xs text-slate-500 mt-1">
-                            <MapPin className="w-3 h-3" />
-                            {biz.city}, {biz.state || biz.country}
+                          <span className="flex items-center gap-1 text-xs font-medium text-slate-500 mt-1">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate">{biz.city}, {biz.state || biz.country}</span>
                           </span>
                         )}
                       </div>
                     </div>
 
-                    <p className="text-xs text-slate-500 mt-3 line-clamp-2">{biz.description}</p>
+                    <p className="text-xs text-slate-500 mt-2.5 line-clamp-2 min-h-[32px] leading-relaxed">
+                      {biz.description || 'Join our digital loyalty program to earn stamps on every visit and unlock exclusive milestone rewards.'}
+                    </p>
 
-                    {reward && (
-                      <div className="mt-4 p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-center gap-2.5 text-xs">
-                        <Gift className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <div>
-                          <div className="font-semibold text-emerald-950 truncate">
-                            {activeCampaign?.name || reward.title}
-                          </div>
-                          <div className="text-[11px] text-emerald-700">
-                            Reward: {reward.value || reward.title}
-                          </div>
+                    {/* Accurate & Prominent Campaign Badge */}
+                    <div className="mt-3.5 p-3 rounded-2xl bg-emerald-50/80 border border-emerald-100 flex items-center gap-3 text-xs">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-xs">
+                        <Gift className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-emerald-950 truncate text-[13px]">
+                          {activeCampaign?.name || 'Loyalty Milestone Club'}
+                        </div>
+                        <div className="text-[11px] font-semibold text-emerald-700 truncate mt-0.5">
+                          {reward?.value || reward?.title || activeCampaign?.rewardTitle || `Reward: Free Milestone Perk on ${activeCampaign?.targetVisits || 10} Stamps`}
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="p-5 pt-0 flex gap-2">
                   <Link
                     href={`/business/${biz.slug}`}
-                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs py-2.5 rounded-xl text-center transition"
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl text-center transition"
                   >
                     View Details
                   </Link>
@@ -256,16 +259,16 @@ export default function DiscoverPage() {
                   {isJoined ? (
                     <Link
                       href="/loyalty"
-                      className="flex-1 bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1 transition"
+                      className="flex-1 bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition"
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                       Joined (View Card)
                     </Link>
                   ) : (
                     <button
                       onClick={() => handleJoin(biz.id)}
                       disabled={joiningId === biz.id}
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1 transition shadow-sm active:scale-95 disabled:opacity-50"
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition shadow-sm active:scale-95 disabled:opacity-50"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       {joiningId === biz.id ? 'Joining...' : 'Join Program'}
