@@ -168,8 +168,8 @@ export default function MerchantRegisterPage() {
     setError(null);
 
     const cleanCode = otpCode.trim();
-    if (cleanCode.length < 4) {
-      setError('Please enter your verification code.');
+    if (cleanCode.length !== 4) {
+      setError('Please enter the 4-digit verification code.');
       return;
     }
 
@@ -241,7 +241,7 @@ export default function MerchantRegisterPage() {
               <p className="text-xs text-slate-500">
                 {step === 'form'
                   ? 'Launch your digital loyalty program with instant counter QR check-ins'
-                  : `Enter the security verification code sent from GoldStamp Security`}
+                  : `Enter the 4-digit verification code sent from GoldStamp Security`}
               </p>
             </div>
           </div>
@@ -472,35 +472,32 @@ export default function MerchantRegisterPage() {
                 <span>GoldStamp Security Dispatch</span>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                We've sent a verification code to{' '}
+                We've sent a 4-digit verification code to{' '}
                 <strong className="text-slate-900">{formData.email}</strong>. Enter the code below to activate your merchant account.
               </p>
             </div>
 
             <div>
               <label className="text-xs font-semibold text-slate-700 block mb-2 text-center">
-                Enter Verification Code
+                Enter 4-Digit Authentication Code
               </label>
-              <div className="relative max-w-sm mx-auto">
+              <div className="relative max-w-xs mx-auto">
                 <input
                   type="text"
-                  maxLength={8}
+                  maxLength={4}
                   required
                   autoFocus
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder="00000000"
-                  className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20 rounded-2xl py-3 text-center text-2xl font-mono font-extrabold tracking-[0.25em] text-slate-950 placeholder-slate-300 transition"
+                  placeholder="0000"
+                  className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20 rounded-2xl py-3 text-center text-3xl font-mono font-extrabold tracking-[0.4em] text-slate-950 placeholder-slate-300 transition"
                 />
               </div>
-              <p className="text-[11px] text-slate-400 text-center mt-2">
-                Type or paste the 8-digit code from your email (e.g. 86588966)
-              </p>
             </div>
 
             <button
               type="submit"
-              disabled={loading || otpCode.length < 4 || verificationSuccess}
+              disabled={loading || otpCode.length !== 4 || verificationSuccess}
               className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
             >
               {loading ? (

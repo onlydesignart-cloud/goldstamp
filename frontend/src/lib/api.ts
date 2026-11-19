@@ -490,25 +490,22 @@ export const api = {
         password: data.password,
       });
 
-      // 5. Dispatch real verification email with authentication code via Supabase
+      // 5. Dispatch real verification email with 4-digit authentication code
       if (typeof window !== 'undefined') {
         try {
-          const supabase = createClient();
-          const { error: otpErr } = await supabase.auth.signInWithOtp({
-            email,
-            options: {
-              shouldCreateUser: true,
-            },
+          await fetch('/api/send-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email,
+              code: session.otpCode,
+              businessName: data.businessName,
+              name: data.ownerName,
+              type: 'MERCHANT',
+            }),
           });
-          if (otpErr) {
-            console.warn('Supabase merchant OTP dispatch notice:', otpErr);
-            if (otpErr.message?.toLowerCase().includes('rate limit') || (otpErr as any).status === 429) {
-              throw new Error('Email sending rate limit reached. Please wait 60 seconds before requesting a code.');
-            }
-          }
         } catch (err: any) {
-          console.warn('Supabase client dispatch note:', err);
-          if (err.message?.includes('rate limit')) throw err;
+          console.warn('Direct 4-digit OTP dispatch notice:', err);
         }
       }
 
@@ -519,7 +516,7 @@ export const api = {
         expiresAt: session.expiresAt,
         sender: 'GoldStamp Security',
       };
-    }, 'Verification code sent to your email');
+    }, '4-digit verification code sent to your email');
   },
 
   verifyMerchantOtp: async (payload: {
@@ -535,26 +532,8 @@ export const api = {
         throw new Error('INVALID_SESSION: Verification session not found or expired. Please register again.');
       }
 
-      // Verify with Supabase Auth first
-      let supabaseVerified = false;
-      if (typeof window !== 'undefined') {
-        try {
-          const supabase = createClient();
-          const { data: supaAuth, error: supaErr } = await supabase.auth.verifyOtp({
-            email: session.email,
-            token: cleanCode,
-            type: 'email',
-          });
-          if (!supaErr && supaAuth?.user) {
-            supabaseVerified = true;
-          }
-        } catch (e) {
-          console.warn('Supabase verifyOtp notice:', e);
-        }
-      }
-
-      // Complete verification in mock store
-      const verified = mockStore.verifyMerchantOtp(sessionId, cleanCode, supabaseVerified);
+      // Complete verification in mock store (strictly checks 4-digit code)
+      const verified = mockStore.verifyMerchantOtp(sessionId, cleanCode, false);
 
       // Register into live PostgreSQL DB on Render backend
       let backendData: any = null;
@@ -657,26 +636,24 @@ export const api = {
 
       if (typeof window !== 'undefined' && session?.email) {
         try {
-          const supabase = createClient();
-          const { error: otpErr } = await supabase.auth.signInWithOtp({
-            email: session.email,
-            options: {
-              shouldCreateUser: true,
-            },
+          await fetch('/api/send-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: session.email,
+              code: res.otpCode,
+              businessName: session.businessName,
+              name: session.ownerName,
+              type: 'MERCHANT',
+            }),
           });
-          if (otpErr) {
-            console.warn('Supabase resend OTP notice:', otpErr);
-            if (otpErr.message?.toLowerCase().includes('rate limit') || (otpErr as any).status === 429) {
-              throw new Error('Email sending rate limit reached. Please wait 60 seconds before requesting a code.');
-            }
-          }
         } catch (err: any) {
-          if (err.message?.includes('rate limit')) throw err;
+          console.warn('Direct 4-digit OTP resend notice:', err);
         }
       }
 
       return res;
-    }, 'Fresh verification code sent to your email');
+    }, 'Fresh 4-digit verification code sent to your email');
   },
 
   sendCustomerOtp: async (data: {
@@ -721,25 +698,21 @@ export const api = {
         password: data.password,
       });
 
-      // 5. Attempt to dispatch Supabase OTP email
+      // 5. Attempt to dispatch 4-digit OTP email
       if (typeof window !== 'undefined') {
         try {
-          const supabase = createClient();
-          const { error: otpErr } = await supabase.auth.signInWithOtp({
-            email,
-            options: {
-              shouldCreateUser: true,
-            },
+          await fetch('/api/send-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email,
+              code: session.otpCode,
+              name: data.name,
+              type: 'CUSTOMER',
+            }),
           });
-          if (otpErr) {
-            console.warn('Supabase email OTP dispatch notice:', otpErr);
-            if (otpErr.message?.toLowerCase().includes('rate limit') || (otpErr as any).status === 429) {
-              throw new Error('Email sending rate limit reached. Please wait 60 seconds before requesting a code.');
-            }
-          }
         } catch (err: any) {
-          console.warn('Supabase client note:', err);
-          if (err.message?.includes('rate limit')) throw err;
+          console.warn('Direct 4-digit customer OTP dispatch notice:', err);
         }
       }
 
@@ -793,26 +766,8 @@ export const api = {
         throw new Error('INVALID_SESSION: Verification session not found or expired. Please sign up again.');
       }
 
-      // Verify with Supabase Auth first
-      let supabaseVerified = false;
-      if (typeof window !== 'undefined') {
-        try {
-          const supabase = createClient();
-          const { data: supaAuth, error: supaErr } = await supabase.auth.verifyOtp({
-            email: session.email,
-            token: cleanCode,
-            type: 'email',
-          });
-          if (!supaErr && supaAuth?.user) {
-            supabaseVerified = true;
-          }
-        } catch (e) {
-          console.warn('Supabase customer verifyOtp notice:', e);
-        }
-      }
-
-      // Verify OTP code in store (enforces max attempts and expiration)
-      const verified = mockStore.verifyCustomerOtp(sessionId, cleanCode, supabaseVerified);
+      // Verify OTP code in store (strictly checks 4-digit code)
+      const verified = mockStore.verifyCustomerOtp(sessionId, cleanCode, false);
 
       // Register directly in live PostgreSQL DB via Render Backend
       let backendData: any = null;
@@ -886,22 +841,18 @@ export const api = {
 
       if (typeof window !== 'undefined' && session?.email) {
         try {
-          const supabase = createClient();
-          const { error: otpErr } = await supabase.auth.signInWithOtp({
-            email: session.email,
-            options: {
-              shouldCreateUser: true,
-            },
+          await fetch('/api/send-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: session.email,
+              code: res.otpCode,
+              name: session.name,
+              type: 'CUSTOMER',
+            }),
           });
-          if (otpErr) {
-            console.warn('Supabase resend OTP note:', otpErr);
-            if (otpErr.message?.toLowerCase().includes('rate limit') || (otpErr as any).status === 429) {
-              throw new Error('Email sending rate limit reached. Please wait 60 seconds before requesting a code.');
-            }
-          }
         } catch (err: any) {
-          console.warn('Supabase client error:', err);
-          if (err.message?.includes('rate limit')) throw err;
+          console.warn('Direct 4-digit customer OTP resend error:', err);
         }
       }
 
