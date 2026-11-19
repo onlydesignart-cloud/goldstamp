@@ -496,7 +496,7 @@ export default function CustomerRegisterPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-semibold text-slate-700">
-                      Enter Verification Code (4 Digits)
+                      Enter Verification Code
                     </label>
                     <button
                       type="button"
@@ -517,7 +517,7 @@ export default function CustomerRegisterPage() {
                       autoFocus
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
-                      placeholder="e.g. 1234"
+                      placeholder="e.g. 86588966"
                       className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-600 rounded-xl pl-10 pr-4 py-3 text-base tracking-widest font-mono text-center font-bold text-slate-900 transition"
                     />
                   </div>

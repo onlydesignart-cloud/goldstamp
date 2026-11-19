@@ -241,7 +241,7 @@ export default function MerchantRegisterPage() {
               <p className="text-xs text-slate-500">
                 {step === 'form'
                   ? 'Launch your digital loyalty program with instant counter QR check-ins'
-                  : `Enter the 4-digit verification code sent from GoldStamp Security`}
+                  : `Enter the security verification code sent from GoldStamp Security`}
               </p>
             </div>
           </div>
@@ -479,7 +479,7 @@ export default function MerchantRegisterPage() {
 
             <div>
               <label className="text-xs font-semibold text-slate-700 block mb-2 text-center">
-                Enter Verification Code (4 Digits)
+                Enter Verification Code
               </label>
               <div className="relative max-w-sm mx-auto">
                 <input
@@ -489,10 +489,13 @@ export default function MerchantRegisterPage() {
                   autoFocus
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder="0000"
-                  className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20 rounded-2xl py-3 text-center text-2xl font-mono font-extrabold tracking-[0.3em] text-slate-950 placeholder-slate-300 transition"
+                  placeholder="00000000"
+                  className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20 rounded-2xl py-3 text-center text-2xl font-mono font-extrabold tracking-[0.25em] text-slate-950 placeholder-slate-300 transition"
                 />
               </div>
+              <p className="text-[11px] text-slate-400 text-center mt-2">
+                Type or paste the 8-digit code from your email (e.g. 86588966)
+              </p>
             </div>
 
             <button
