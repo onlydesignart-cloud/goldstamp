@@ -1630,8 +1630,12 @@ class MockDataStore {
           name: campaign?.name || 'Loyalty Program',
           rewardTitle,
           type: campaign?.type || 'STAMP',
+          targetStamps: target,
+          targetVisits: target,
+          milestoneTarget: target,
         },
         currentStamps: cycleStamps,
+        targetStamps: target,
         targetVisits: target,
         totalVisits: cb.totalVisits,
         totalStamps: cb.totalStamps,
@@ -1650,6 +1654,7 @@ class MockDataStore {
   // --- Campaigns Management ---
   public createCampaign(businessId: string, campaignData: any) {
     const db = this.getDb();
+    const targetNum = Number(campaignData.conditionValue || 10);
     const newCampaign = {
       id: `cmp_${Date.now()}`,
       businessId,
@@ -1658,10 +1663,13 @@ class MockDataStore {
       type: campaignData.type || 'STAMP',
       status: 'ACTIVE',
       isRecurring: campaignData.isRecurring ?? true,
+      targetStamps: targetNum,
+      targetVisits: targetNum,
+      milestoneTarget: targetNum,
       rules: [
         {
           conditionType: campaignData.conditionType || 'STAMP_COUNT',
-          conditionValue: campaignData.conditionValue || 10,
+          conditionValue: targetNum,
           rewardType: campaignData.rewardType || 'FREE_PRODUCT',
         },
       ],

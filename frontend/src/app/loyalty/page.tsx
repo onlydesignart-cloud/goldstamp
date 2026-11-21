@@ -117,7 +117,7 @@ export default function LoyaltyPage() {
               campaignName={prog.activeCampaign?.name || prog.campaign?.name || 'Loyalty Program'}
               rewardTitle={prog.activeCampaign?.rewardTitle || prog.campaign?.rewards?.[0]?.title || 'Milestone Reward'}
               currentStamps={prog.currentStamps ?? prog.cycleStamps ?? 0}
-              targetStamps={prog.targetVisits ?? prog.milestoneTarget ?? 10}
+              targetStamps={prog.targetStamps ?? prog.targetVisits ?? prog.milestoneTarget ?? prog.activeCampaign?.targetStamps ?? prog.campaign?.rules?.[0]?.conditionValue ?? 10}
               totalVisits={prog.totalVisits || 0}
               totalPoints={prog.totalPoints || 0}
               lastVisitAt={prog.lastVisitAt}

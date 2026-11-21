@@ -954,13 +954,31 @@ export const api = {
           .eq('status', 'ACTIVE');
 
         if (!error && dbBiz && dbBiz.length > 0) {
-          const formatted = dbBiz.map((b: any) => ({
-            ...b,
-            industry: b.industry?.name || 'Local Commerce',
-            coverImage: b.coverImage || '/images/hero-counter.jpg',
-            activeCampaigns: b.campaigns?.filter((c: any) => c.status === 'ACTIVE') || [],
-            campaign: b.campaigns?.find((c: any) => c.status === 'ACTIVE') || b.campaigns?.[0] || null,
-          }));
+          const formatted = dbBiz.map((b: any) => {
+            const formattedCampaigns = (b.campaigns || []).map((c: any) => {
+              const rule = c.rules?.[0];
+              const reward = c.rewards?.[0];
+              const targetStamps = Number(rule?.conditionValue) || Number(c.targetVisits) || 10;
+              const rewardTitle = reward?.title || rule?.rewardValue || 'Milestone Reward';
+              return {
+                ...c,
+                targetStamps,
+                targetVisits: targetStamps,
+                milestoneTarget: targetStamps,
+                rewardTitle,
+              };
+            });
+            const activeCampaign = formattedCampaigns.find((c: any) => c.status === 'ACTIVE') || formattedCampaigns[0] || null;
+            return {
+              ...b,
+              campaigns: formattedCampaigns,
+              industry: b.industry?.name || 'Local Commerce',
+              coverImage: b.coverImage || '/images/hero-counter.jpg',
+              activeCampaigns: formattedCampaigns.filter((c: any) => c.status === 'ACTIVE'),
+              activeCampaign,
+              campaign: activeCampaign,
+            };
+          });
           formatted.forEach((b: any) => mockStore.syncBusiness(b));
           return {
             success: true,
@@ -1005,14 +1023,28 @@ export const api = {
           .maybeSingle();
 
         if (!error && dbBiz) {
-          const activeCampaign = dbBiz.campaigns?.find((c: any) => c.status === 'ACTIVE') || dbBiz.campaigns?.[0] || null;
+          const formattedCampaigns = (dbBiz.campaigns || []).map((c: any) => {
+            const rule = c.rules?.[0];
+            const reward = c.rewards?.[0];
+            const targetStamps = Number(rule?.conditionValue) || Number(c.targetVisits) || 10;
+            const rewardTitle = reward?.title || rule?.rewardValue || 'Milestone Reward';
+            return {
+              ...c,
+              targetStamps,
+              targetVisits: targetStamps,
+              milestoneTarget: targetStamps,
+              rewardTitle,
+            };
+          });
+          const activeCampaign = formattedCampaigns.find((c: any) => c.status === 'ACTIVE') || formattedCampaigns[0] || null;
           const formatted = {
             ...dbBiz,
+            campaigns: formattedCampaigns,
             industry: dbBiz.industry?.name || 'Local Commerce',
             coverImage: dbBiz.coverImage || '/images/hero-counter.jpg',
             activeCampaign,
             campaign: activeCampaign,
-            rewards: dbBiz.campaigns?.flatMap((c: any) => c.rewards || []) || [],
+            rewards: formattedCampaigns.flatMap((c: any) => c.rewards || []),
           };
           mockStore.syncBusiness(formatted);
           return {
@@ -1119,9 +1151,21 @@ export const api = {
         }
         const { data: dbCamps, error } = await query;
         if (!error && dbCamps && dbCamps.length > 0) {
+          const formatted = dbCamps.map((c: any) => {
+            const rule = c.rules?.[0];
+            const reward = c.rewards?.[0];
+            const targetStamps = Number(rule?.conditionValue) || Number(c.targetVisits) || 10;
+            return {
+              ...c,
+              targetStamps,
+              targetVisits: targetStamps,
+              milestoneTarget: targetStamps,
+              rewardTitle: reward?.title || rule?.rewardValue || 'Milestone Reward',
+            };
+          });
           return {
             success: true,
-            data: dbCamps,
+            data: formatted,
           };
         }
       } catch (err) {
@@ -1295,8 +1339,8 @@ export const api = {
     return asyncWrap(async () => {
       // 1. Generate clean 6-digit counter code
       const token = Math.floor(100000 + Math.random() * 900000).toString();
-      // 3-minute validity (180s) ensures customers don't get rejected while typing or pointing camera
-      const expiresAt = new Date(Date.now() + 180 * 1000).toISOString();
+      // 10-minute validity (600s) ensures customers don't get rejected while typing or pointing camera
+      const expiresAt = new Date(Date.now() + 600 * 1000).toISOString();
       const origin = typeof window !== 'undefined' ? window.location.origin : 'https://goldstamp.vercel.app';
       const checkInUrl = `${origin}/checkin?token=${token}`;
 
@@ -1324,19 +1368,50 @@ export const api = {
             }
           }
 
+          // Verify branchId and campaignId exist in DB to prevent foreign key errors
+          let safeBranchId: string | null = null;
+          if (options.branchId) {
+            try {
+              const { data: brCheck } = await supabase.from('BusinessBranch').select('id').eq('id', options.branchId).limit(1);
+              if (brCheck && brCheck.length > 0) safeBranchId = options.branchId;
+            } catch {}
+          }
+
+          let safeCampId: string | null = null;
+          if (options.campaignId) {
+            try {
+              const { data: campCheck } = await supabase.from('Campaign').select('id').eq('id', options.campaignId).limit(1);
+              if (campCheck && campCheck.length > 0) safeCampId = options.campaignId;
+            } catch {}
+          }
+
           const qrId = `qr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
           const { error: qrErr } = await supabase.from('QRCode').insert({
             id: qrId,
             businessId: validBizId,
-            branchId: options.branchId || null,
-            campaignId: options.campaignId || null,
+            branchId: safeBranchId,
+            campaignId: safeCampId,
             token: token,
             expiresAt: expiresAt,
             type: 'DYNAMIC_CHECKIN',
             isUsed: false,
             createdAt: new Date().toISOString(),
           });
-          if (qrErr) console.warn('Supabase QRCode insert note:', qrErr);
+          if (qrErr) {
+            console.warn('Supabase QRCode insert note, executing safe fallback insert:', qrErr);
+            // Safe fallback without nullable FKs to guarantee token row is recorded
+            await supabase.from('QRCode').insert({
+              id: qrId,
+              businessId: validBizId,
+              branchId: null,
+              campaignId: null,
+              token: token,
+              expiresAt: expiresAt,
+              type: 'DYNAMIC_CHECKIN',
+              isUsed: false,
+              createdAt: new Date().toISOString(),
+            });
+          }
         } catch (dbErr) {
           console.warn('Supabase generateDynamicQr note:', dbErr);
         }
@@ -1398,9 +1473,12 @@ export const api = {
         throw new Error('Please wait a moment before checking in again.');
       }
 
-      // 1. Clean token (handles raw "123456" and full URLs "https://.../checkin?token=123456")
+      // 1. Clean token (handles raw "123456", full URLs "https://.../checkin?token=123456", and parameter strings)
       let cleanToken = (data.token || '').trim();
-      if (cleanToken.includes('token=')) {
+      const mUrl = cleanToken.match(/[?&]token=([a-zA-Z0-9_-]+)/);
+      if (mUrl && mUrl[1]) {
+        cleanToken = mUrl[1];
+      } else if (cleanToken.includes('token=')) {
         try {
           const url = new URL(cleanToken);
           cleanToken = url.searchParams.get('token') || cleanToken;
@@ -1408,6 +1486,10 @@ export const api = {
           const m = cleanToken.match(/token=([a-zA-Z0-9_-]+)/);
           if (m && m[1]) cleanToken = m[1];
         }
+      }
+      const mDigits = cleanToken.match(/\b(\d{6})\b/);
+      if (mDigits && mDigits[1]) {
+        cleanToken = mDigits[1];
       }
       cleanToken = cleanToken.trim();
 
@@ -1440,10 +1522,10 @@ export const api = {
         try {
           const supabase = createClient();
 
-          // A. Query Supabase for this token
+          // A. Query Supabase for this token directly
           const { data: qrRows, error: qrErr } = await supabase
             .from('QRCode')
-            .select('*, business:Business(*)')
+            .select('*')
             .eq('token', cleanToken)
             .order('createdAt', { ascending: false })
             .limit(1);
@@ -1456,9 +1538,9 @@ export const api = {
               throw new Error('FRAUD_PREVENTED: This QR code has already been scanned and consumed. Once scanned, tokens are instantly burned to prevent replay.');
             }
 
-            // Anti-Fraud 2: Expiration check (with 45-second latency buffer for mobile networks)
+            // Anti-Fraud 2: Expiration check (with 120-second latency buffer for mobile networks)
             const expiryTime = new Date(qrRecord.expiresAt).getTime();
-            if (Date.now() > expiryTime + 45000) {
+            if (Date.now() > expiryTime + 120000) {
               throw new Error('EXPIRED_TOKEN: This counter QR code has expired. Please scan the current fresh QR code from the counter.');
             }
 
@@ -1466,7 +1548,17 @@ export const api = {
             await supabase.from('QRCode').update({ isUsed: true }).eq('id', qrRecord.id);
 
             const bizId = qrRecord.businessId;
-            const bizName = qrRecord.business?.name || 'SmashZone Arena';
+            let bizName = 'Local Venue';
+            let bizSlug = 'venue';
+            if (bizId) {
+              try {
+                const { data: bData } = await supabase.from('Business').select('id, name, slug').eq('id', bizId).maybeSingle();
+                if (bData) {
+                  bizName = bData.name || bizName;
+                  bizSlug = bData.slug || bizSlug;
+                }
+              } catch {}
+            }
 
             // C. Ensure Customer User exists in Supabase DB (prevent FK violation)
             const { data: dbUser } = await supabase.from('User').select('id, name, email, phone').eq('id', activeCustId).maybeSingle();
@@ -1491,12 +1583,12 @@ export const api = {
               const { data: c } = await supabase.from('Campaign').select('*, rules:CampaignRule(*), rewards:Reward(*)').eq('id', qrRecord.campaignId).maybeSingle();
               if (c) targetCamp = c;
             }
-            if (!targetCamp) {
-              const { data: camps } = await supabase.from('Campaign').select('*, rules:CampaignRule(*), rewards:Reward(*)').eq('businessId', bizId).eq('status', 'ACTIVE').limit(1);
+            if (!targetCamp && bizId) {
+              const { data: camps } = await supabase.from('Campaign').select('*, rules:CampaignRule(*), rewards:Reward(*)').eq('businessId', bizId).eq('status', 'ACTIVE').order('createdAt', { ascending: false }).limit(1);
               if (camps && camps.length > 0) targetCamp = camps[0];
             }
             if (!targetCamp) {
-              const { data: anyCamp } = await supabase.from('Campaign').select('*, rules:CampaignRule(*), rewards:Reward(*)').eq('status', 'ACTIVE').limit(1);
+              const { data: anyCamp } = await supabase.from('Campaign').select('*, rules:CampaignRule(*), rewards:Reward(*)').eq('status', 'ACTIVE').order('createdAt', { ascending: false }).limit(1);
               if (anyCamp && anyCamp.length > 0) targetCamp = anyCamp[0];
             }
             if (!targetCamp) {
@@ -1556,9 +1648,9 @@ export const api = {
             });
 
             // H. Milestone Check & Voucher Grant
-            const milestoneTarget = targetCamp?.rules?.[0]?.conditionValue || 10;
-            const rewardTitle = targetCamp?.rules?.[0]?.rewardValue || targetCamp?.rewards?.[0]?.title || '1 Hour Free Court Session';
-            const cycleStamps = currentStamps % milestoneTarget === 0 ? milestoneTarget : (currentStamps % milestoneTarget);
+            const milestoneTarget = Number(targetCamp?.rules?.[0]?.conditionValue) || Number(targetCamp?.targetVisits) || 10;
+            const rewardTitle = targetCamp?.rewards?.[0]?.title || targetCamp?.rules?.[0]?.rewardValue || '1 Hour Free Court Session';
+            const cycleStamps = (currentStamps % milestoneTarget === 0 && currentStamps > 0) ? milestoneTarget : (currentStamps % milestoneTarget);
             const isMilestoneUnlocked = currentStamps > 0 && currentStamps % milestoneTarget === 0;
 
             let voucherCode = null;
@@ -1586,14 +1678,18 @@ export const api = {
               business: {
                 id: bizId,
                 name: bizName,
+                slug: bizSlug,
               },
               campaign: {
                 id: targetCamp.id,
                 name: targetCamp.name,
               },
-              currentStamps,
+              currentStamps: cycleStamps,
+              totalStamps: currentStamps,
               cycleStamps,
               milestoneTarget,
+              targetStamps: milestoneTarget,
+              targetVisits: milestoneTarget,
               rewardUnlocked: isMilestoneUnlocked,
               unlockedReward: isMilestoneUnlocked ? rewardTitle : null,
               voucherCode,
@@ -1610,8 +1706,12 @@ export const api = {
       }
 
       // 4. Fallback to mockStore (for offline testing or demo tokens)
-      const mockResult = mockStore.processCheckIn(cleanToken, activeCustId);
-      return mockResult;
+      try {
+        const mockResult = mockStore.processCheckIn(cleanToken, activeCustId);
+        return mockResult;
+      } catch (mockErr: any) {
+        throw new Error('INVALID_TOKEN: QR token is invalid, unrecognized, or has expired. Please scan a fresh counter QR code.');
+      }
     });
   },
 
@@ -1818,15 +1918,28 @@ export const api = {
             const activeCamp = biz?.campaigns?.find((c: any) => c.status === 'ACTIVE') || biz?.campaigns?.[0] || null;
             const rule = activeCamp?.rules?.[0];
             const reward = activeCamp?.rewards?.[0];
+            const target = Number(rule?.conditionValue) || Number(activeCamp?.targetVisits) || 10;
+            const totalStamps = Number(m.totalStamps) || 0;
+            const cycleStamps = (totalStamps % target === 0 && totalStamps > 0) ? target : (totalStamps % target);
+            const rewardTitle = reward?.title || rule?.rewardValue || 'Milestone Reward';
 
             return {
               id: m.id,
               businessId: m.businessId,
               userId: m.userId,
+              businessName: biz?.name || 'Local Venue',
+              businessSlug: biz?.slug || 'venue',
+              businessLogo: biz?.logo || null,
+              industry: biz?.industry?.name || 'Local Commerce',
               status: m.status,
               totalVisits: m.totalVisits || 0,
-              totalStamps: m.totalStamps || 0,
+              totalStamps: totalStamps,
               totalPoints: m.totalPoints || 0,
+              targetStamps: target,
+              targetVisits: target,
+              milestoneTarget: target,
+              currentStamps: cycleStamps,
+              cycleStamps: cycleStamps,
               lastVisitAt: m.lastVisitAt,
               joinedAt: m.joinedAt,
               business: biz,
@@ -1835,8 +1948,10 @@ export const api = {
                 id: activeCamp.id,
                 name: activeCamp.name,
                 type: activeCamp.type,
-                targetStamps: rule?.conditionValue || 10,
-                rewardTitle: reward?.title || 'Loyalty Reward',
+                targetStamps: target,
+                targetVisits: target,
+                milestoneTarget: target,
+                rewardTitle,
                 rewardId: reward?.id,
               } : null,
             };

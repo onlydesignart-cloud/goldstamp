@@ -37,13 +37,15 @@ function CheckInContent() {
   const scannerRef = useRef<any>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const autoTriggeredRef = useRef(false);
 
-  // If URL has token on mount and user is logged in, auto process!
+  // If URL has token on mount, auto process immediately!
   useEffect(() => {
-    if (tokenFromUrl && user) {
+    if (tokenFromUrl && !autoTriggeredRef.current) {
+      autoTriggeredRef.current = true;
       handleCheckIn(tokenFromUrl);
     }
-  }, [tokenFromUrl, user]);
+  }, [tokenFromUrl]);
 
   // Initialize In-App Camera Scanner on mount if no result and no token in URL
   useEffect(() => {
@@ -73,12 +75,19 @@ function CheckInContent() {
           (decodedText: string) => {
             // QR Scanned Successfully!
             let token = decodedText.trim();
-            try {
-              if (decodedText.includes('token=')) {
-                const url = new URL(decodedText);
-                token = url.searchParams.get('token') || decodedText;
-              }
-            } catch { }
+            const tokenMatch = token.match(/[?&]token=([a-zA-Z0-9_-]+)/);
+            if (tokenMatch && tokenMatch[1]) {
+              token = tokenMatch[1];
+            } else if (token.includes('token=')) {
+              try {
+                const url = new URL(token);
+                token = url.searchParams.get('token') || token;
+              } catch { }
+            }
+            const mDigits = token.match(/\b(\d{6})\b/);
+            if (mDigits && mDigits[1]) {
+              token = mDigits[1];
+            }
 
             // Stop camera immediately upon detection
             if (scannerRef.current) {
@@ -443,15 +452,23 @@ function CheckInContent() {
           <div className="flex gap-2 max-w-xs mx-auto">
             <input
               type="text"
-              maxLength={6}
+              maxLength={120}
               value={tokenInput}
-              onChange={(e) => setTokenInput(e.target.value.replace(/[^0-9]/g, ''))}
+              onChange={(e) => {
+                const val = e.target.value;
+                const m = val.match(/[?&]token=([a-zA-Z0-9_-]+)/) || val.match(/\b(\d{6})\b/);
+                if (m && m[1]) {
+                  setTokenInput(m[1]);
+                } else {
+                  setTokenInput(val);
+                }
+              }}
               placeholder="000000"
               className="flex-1 bg-slate-50 border border-slate-200 focus:border-emerald-600 focus:bg-white rounded-xl px-3 py-2 text-center text-base tracking-widest font-mono font-bold text-slate-900 transition"
             />
             <button
               type="submit"
-              disabled={loading || tokenInput.trim().length !== 6}
+              disabled={loading || !tokenInput.trim()}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-sm disabled:opacity-50"
             >
               {loading ? 'Verifying...' : 'Check In'}

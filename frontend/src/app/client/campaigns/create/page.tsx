@@ -248,8 +248,8 @@ export default function CreateCampaignSimplePage() {
               <div className="text-[10px] font-bold text-slate-400 mb-2">
                 Stamp Card Layout:
               </div>
-              <div className="grid grid-cols-5 gap-2">
-                {Array.from({ length: Math.min(10, targetStamps) }).map((_, i) => (
+              <div className={`grid ${targetStamps <= 5 ? 'grid-cols-5' : targetStamps <= 8 ? 'grid-cols-4' : 'grid-cols-5'} gap-2`}>
+                {Array.from({ length: targetStamps }).map((_, i) => (
                   <div
                     key={i}
                     className={`h-9 rounded-xl flex items-center justify-center border font-mono text-xs font-bold ${

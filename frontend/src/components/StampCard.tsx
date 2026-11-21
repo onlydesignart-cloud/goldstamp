@@ -131,7 +131,19 @@ export const StampCard: React.FC<StampCardProps> = ({
 
       {/* Visual Digital Stamp Slots Grid */}
       <div className={compact ? 'p-4 sm:p-5' : 'p-5'}>
-        <div className="grid grid-cols-5 gap-2 sm:gap-2.5">
+        <div
+          className={`grid gap-2 sm:gap-2.5 ${
+            safeTarget <= 5
+              ? 'grid-cols-5'
+              : safeTarget === 6
+              ? 'grid-cols-3 sm:grid-cols-6'
+              : safeTarget === 8
+              ? 'grid-cols-4'
+              : safeTarget === 12
+              ? 'grid-cols-4 sm:grid-cols-6'
+              : 'grid-cols-5'
+          }`}
+        >
           {Array.from({ length: safeTarget }).map((_, index) => {
             const slotNumber = index + 1;
             const isStamped = slotNumber <= safeCurrent;

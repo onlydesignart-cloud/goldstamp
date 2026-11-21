@@ -241,7 +241,7 @@ export default function DiscoverPage() {
                           {activeCampaign?.name || 'Loyalty Milestone Club'}
                         </div>
                         <div className="text-[11px] font-semibold text-emerald-700 truncate mt-0.5">
-                          {reward?.value || reward?.title || activeCampaign?.rewardTitle || `Reward: Free Milestone Perk on ${activeCampaign?.targetVisits || 10} Stamps`}
+                          {reward?.value || reward?.title || activeCampaign?.rewardTitle || `Reward: Free Milestone Perk on ${activeCampaign?.rules?.[0]?.conditionValue || activeCampaign?.targetStamps || activeCampaign?.targetVisits || 10} Stamps`}
                         </div>
                       </div>
                     </div>

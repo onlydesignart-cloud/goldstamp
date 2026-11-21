@@ -108,7 +108,17 @@ export default function BusinessProfilePage() {
   }
 
   const primaryCampaign = business.campaigns?.[0];
+  const primaryRule = primaryCampaign?.rules?.[0];
   const primaryReward = primaryCampaign?.rewards?.[0];
+  const campaignTargetStamps = Number(primaryRule?.conditionValue || primaryCampaign?.targetStamps || primaryCampaign?.targetVisits || 10);
+  const membershipTargetStamps = Number(
+    membership?.targetStamps ||
+    membership?.targetVisits ||
+    membership?.milestoneTarget ||
+    membership?.activeCampaign?.targetStamps ||
+    campaignTargetStamps
+  );
+  const activeTarget = isJoined ? membershipTargetStamps : campaignTargetStamps;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 md:pb-12 space-y-6 sm:space-y-8">
@@ -280,7 +290,7 @@ export default function BusinessProfilePage() {
             campaignName={membership?.activeCampaign?.name || primaryCampaign?.name || 'Loyalty Milestone Club'}
             rewardTitle={membership?.activeCampaign?.rewardTitle || primaryReward?.title || primaryCampaign?.rewardTitle || 'Free Milestone Perk'}
             currentStamps={isJoined ? (membership?.currentStamps ?? membership?.cycleStamps ?? 0) : 0}
-            targetStamps={membership?.targetVisits ?? primaryCampaign?.targetVisits ?? 10}
+            targetStamps={activeTarget}
             totalVisits={membership?.totalVisits || 0}
             totalPoints={membership?.totalPoints || 0}
             lastVisitAt={membership?.lastVisitAt}
@@ -296,6 +306,7 @@ export default function BusinessProfilePage() {
             business.campaigns.map((camp: any) => {
               const reward = camp.rewards?.[0];
               const rule = camp.rules?.[0];
+              const campTarget = Number(rule?.conditionValue || camp.targetStamps || camp.targetVisits || 10);
 
               return (
                 <div
@@ -307,7 +318,7 @@ export default function BusinessProfilePage() {
                       <span className="bg-emerald-50 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-100">
                         {camp.type || 'STAMP'} Program
                       </span>
-                      <span className="text-[11px] text-slate-400 font-medium">Target: {camp.targetVisits || 10} Visits</span>
+                      <span className="text-[11px] text-slate-400 font-medium">Target: {campTarget} Visits</span>
                     </div>
                     <h3 className="font-extrabold text-slate-900 text-base">{camp.name}</h3>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">{camp.description || 'Visit the counter to collect stamps and earn exclusive rewards.'}</p>
@@ -321,7 +332,7 @@ export default function BusinessProfilePage() {
                       </span>
                     </div>
                     <span className="font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
-                      {camp.targetVisits || rule?.conditionValue || 10} Stamps
+                      {campTarget} Stamps
                     </span>
                   </div>
                 </div>
