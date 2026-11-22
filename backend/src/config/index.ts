@@ -19,7 +19,7 @@ export const config = {
   
   qr: {
     secret: process.env.QR_TOKEN_SECRET || 'super-secure-qr-hmac-token-secret-goldstamp-2026',
-    expirySeconds: parseInt(process.env.QR_EXPIRY_SECONDS || '60', 10),
+    expirySeconds: parseInt(process.env.QR_EXPIRY_SECONDS || '1800', 10),
   },
 
   redis: {

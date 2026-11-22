@@ -492,6 +492,18 @@ const INITIAL_DATA: MockStoreState = {
   },
 };
 
+function parseUtcDate(dateStr: string | Date | null | undefined): number {
+  if (!dateStr) return 0;
+  if (dateStr instanceof Date) return dateStr.getTime();
+  let s = String(dateStr).trim();
+  if (!s) return 0;
+  if (!s.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(s)) {
+    s += 'Z';
+  }
+  const t = new Date(s).getTime();
+  return isNaN(t) ? 0 : t;
+}
+
 class MockDataStore {
   private getDb(): MockStoreState {
     if (typeof window === 'undefined') return INITIAL_DATA;
@@ -1292,10 +1304,13 @@ class MockDataStore {
 
     // Clean 6-digit short counter code
     const token = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 180 * 1000).toISOString(); // 180s TTL
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30-min TTL
 
     const record = { token, businessId: biz.id, branchId, expiresAt, isUsed: false, createdAt: new Date().toISOString() };
-    db.qrTokens = db.qrTokens.filter((q) => new Date(q.expiresAt).getTime() > Date.now()); // prune expired
+    db.qrTokens = db.qrTokens.filter((q) => {
+      const exp = parseUtcDate(q.expiresAt);
+      return exp === 0 || exp > Date.now() - 30 * 60 * 1000;
+    }); // prune expired
     db.qrTokens.push(record);
     this.saveDb(db);
 
@@ -1312,7 +1327,10 @@ class MockDataStore {
   public registerQrToken(record: { token: string; businessId: string; branchId?: string | null; expiresAt: string; isUsed?: boolean }) {
     const db = this.getDb();
     if (!db.qrTokens) db.qrTokens = [];
-    db.qrTokens = db.qrTokens.filter((q) => new Date(q.expiresAt).getTime() > Date.now());
+    db.qrTokens = db.qrTokens.filter((q) => {
+      const exp = parseUtcDate(q.expiresAt);
+      return exp === 0 || exp > Date.now() - 30 * 60 * 1000;
+    });
     db.qrTokens.push({ ...record, isUsed: record.isUsed ?? false, createdAt: new Date().toISOString() });
     this.saveDb(db);
   }
@@ -1372,7 +1390,13 @@ class MockDataStore {
       throw new Error('FRAUD_PREVENTED: This QR code has already been scanned and consumed. Once scanned, tokens are instantly burned and screenshots cannot be reused.');
     }
 
-    if (new Date(qrRecord.expiresAt).getTime() < Date.now()) {
+    const now = Date.now();
+    const expiryTime = parseUtcDate(qrRecord.expiresAt);
+    const createdAtTime = parseUtcDate((qrRecord as any).createdAt);
+    const isRecentlyCreated = createdAtTime > 0 && (now - createdAtTime < 30 * 60 * 1000);
+    const isBeforeExpiry = expiryTime > 0 && (now <= expiryTime + 300000);
+
+    if (!isRecentlyCreated && !isBeforeExpiry) {
       throw new Error('EXPIRED_TOKEN: This QR code has expired. Please scan the current fresh code on the counter screen.');
     }
 

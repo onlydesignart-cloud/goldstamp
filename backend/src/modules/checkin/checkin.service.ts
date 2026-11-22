@@ -51,7 +51,13 @@ export class CheckInService {
       throw new Error('FRAUD_PREVENTED: This QR code has already been scanned. Dynamic QR tokens are strictly single-use and cannot be reused by anyone.');
     }
 
-    if (new Date(qrRecord.expiresAt).getTime() < Date.now()) {
+    const now = Date.now();
+    const expiryTime = new Date(qrRecord.expiresAt).getTime();
+    const createdAtTime = new Date(qrRecord.createdAt).getTime();
+    const isRecentlyCreated = createdAtTime > 0 && (now - createdAtTime < 30 * 60 * 1000);
+    const isBeforeExpiry = expiryTime > 0 && (now <= expiryTime + 300000);
+
+    if (!isRecentlyCreated && !isBeforeExpiry) {
       throw new Error('EXPIRED_TOKEN: This QR code has expired. Please scan the current code on the counter screen.');
     }
 

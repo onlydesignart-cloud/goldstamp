@@ -117,6 +117,21 @@ const getActiveUserId = (): string => {
   return parsed?.id || '';
 };
 
+// Robust UTC timestamp parser that guarantees timezone-accurate epoch timestamps
+// (fixes issue where PostgreSQL TIMESTAMP without time zone is parsed as local time in India IST)
+export const parseUtcDate = (dateStr: string | Date | null | undefined): number => {
+  if (!dateStr) return 0;
+  if (dateStr instanceof Date) return dateStr.getTime();
+  let s = String(dateStr).trim();
+  if (!s) return 0;
+  // If no timezone offset (+/-HH:MM or Z) is present, append Z to force UTC interpretation
+  if (!s.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(s)) {
+    s += 'Z';
+  }
+  const t = new Date(s).getTime();
+  return isNaN(t) ? 0 : t;
+};
+
 export const api = {
   // --- Auth ---
   login: async (credentials: any): Promise<ApiResponse<any>> => {
@@ -1339,8 +1354,8 @@ export const api = {
     return asyncWrap(async () => {
       // 1. Generate clean 6-digit counter code
       const token = Math.floor(100000 + Math.random() * 900000).toString();
-      // 10-minute validity (600s) ensures customers don't get rejected while typing or pointing camera
-      const expiresAt = new Date(Date.now() + 600 * 1000).toISOString();
+      // 30-minute validity (1800s) ensures customers don't get rejected while typing or pointing camera
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
       const origin = typeof window !== 'undefined' ? window.location.origin : 'https://goldstamp.vercel.app';
       const checkInUrl = `${origin}/checkin?token=${token}`;
 
@@ -1522,25 +1537,33 @@ export const api = {
         try {
           const supabase = createClient();
 
-          // A. Query Supabase for this token directly
+          // A. Query Supabase for this token directly (fetch up to 5 newest records to find active unused token)
           const { data: qrRows, error: qrErr } = await supabase
             .from('QRCode')
             .select('*')
             .eq('token', cleanToken)
             .order('createdAt', { ascending: false })
-            .limit(1);
+            .limit(5);
 
           if (qrRows && qrRows.length > 0) {
-            const qrRecord = qrRows[0];
+            // Find newest unused token first, otherwise latest token
+            const qrRecord = qrRows.find((q: any) => !q.isUsed) || qrRows[0];
 
             // Anti-Fraud 1: Token already burned?
             if (qrRecord.isUsed) {
               throw new Error('FRAUD_PREVENTED: This QR code has already been scanned and consumed. Once scanned, tokens are instantly burned to prevent replay.');
             }
 
-            // Anti-Fraud 2: Expiration check (with 120-second latency buffer for mobile networks)
-            const expiryTime = new Date(qrRecord.expiresAt).getTime();
-            if (Date.now() > expiryTime + 120000) {
+            // Anti-Fraud 2: Expiration check with robust UTC timezone parsing & dual freshness guard
+            // (Protects against database TIMESTAMP without time zone offset parsing errors in India IST)
+            const now = Date.now();
+            const expiryTime = parseUtcDate(qrRecord.expiresAt);
+            const createdAtTime = parseUtcDate(qrRecord.createdAt);
+
+            const isRecentlyCreated = createdAtTime > 0 && (now - createdAtTime < 30 * 60 * 1000);
+            const isBeforeExpiry = expiryTime > 0 && (now <= expiryTime + 300000); // 5-minute clock drift buffer
+
+            if (!isRecentlyCreated && !isBeforeExpiry) {
               throw new Error('EXPIRED_TOKEN: This counter QR code has expired. Please scan the current fresh QR code from the counter.');
             }
 
