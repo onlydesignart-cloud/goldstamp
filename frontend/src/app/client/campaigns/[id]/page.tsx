@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
+import { exportToCsv } from '../../../../lib/exportCsv';
 import { StampCard } from '../../../../components/StampCard';
 import {
   ArrowLeft,
@@ -27,6 +28,7 @@ import {
   Check,
   RefreshCw,
   Ticket,
+  Download,
 } from 'lucide-react';
 
 export default function CampaignDetailPage() {
@@ -111,6 +113,92 @@ export default function CampaignDetailPage() {
     setTimeout(() => setCopiedLink(false), 3000);
   };
 
+  const handleExportCustomers = () => {
+    if (!customers || customers.length === 0) return;
+    const sanitizedTitle = (campaign?.name || 'campaign').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const filename = `${sanitizedTitle}_patrons_${new Date().toISOString().split('T')[0]}`;
+    const headers = [
+      'Customer Name',
+      'Email',
+      'Phone',
+      'Current Cycle Stamps',
+      'Target Stamps',
+      'Progress (%)',
+      'Total Lifetime Stamps',
+      'Total Visits',
+      'Reward Status',
+      'Last Visit Date',
+    ];
+    const rows = customers.map((c: any) => {
+      const percent = Math.min(100, Math.round((c.cycleStamps / targetStamps) * 100));
+      return [
+        c.name || 'Anonymous',
+        c.email || 'N/A',
+        c.phone || 'N/A',
+        c.cycleStamps ?? 0,
+        targetStamps ?? 10,
+        `${percent}%`,
+        c.totalStamps ?? 0,
+        c.totalVisits ?? 0,
+        c.isRewardReady ? 'REWARD_READY' : 'IN_PROGRESS',
+        c.lastVisitAt ? new Date(c.lastVisitAt).toLocaleDateString() : 'N/A',
+      ];
+    });
+    exportToCsv(filename, headers, rows);
+  };
+
+  const handleExportScans = () => {
+    if (!recentScans || recentScans.length === 0) return;
+    const sanitizedTitle = (campaign?.name || 'campaign').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const filename = `${sanitizedTitle}_scans_${new Date().toISOString().split('T')[0]}`;
+    const headers = [
+      'Scan ID',
+      'Customer Name',
+      'Date & Time',
+      'Verification Method',
+      'Device / Channel',
+      'Credit',
+      'Status',
+    ];
+    const rows = recentScans.map((s: any) => [
+      s.id || 'N/A',
+      s.customerName || 'Customer',
+      new Date(s.timestamp).toLocaleString(),
+      'Counter QR',
+      s.deviceInfo || 'Mobile Device',
+      '+1 Stamp',
+      'Verified',
+    ]);
+    exportToCsv(filename, headers, rows);
+  };
+
+  const handleExportRedemptions = () => {
+    if (!redemptions || redemptions.length === 0) return;
+    const sanitizedTitle = (campaign?.name || 'campaign').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const filename = `${sanitizedTitle}_redemptions_${new Date().toISOString().split('T')[0]}`;
+    const headers = [
+      'Voucher Code',
+      'Customer Name',
+      'Reward Title',
+      'Date Granted',
+      'Status',
+    ];
+    const rows = redemptions.map((r: any) => [
+      r.voucherCode || 'N/A',
+      r.customerName || 'Customer',
+      r.rewardTitle || 'Milestone Reward',
+      new Date(r.issuedAt).toLocaleDateString(),
+      r.status || 'ACTIVE',
+    ]);
+    exportToCsv(filename, headers, rows);
+  };
+
+  const handleExportCurrentTab = () => {
+    if (activeTab === 'customers') handleExportCustomers();
+    else if (activeTab === 'scans') handleExportScans();
+    else handleExportRedemptions();
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 py-2 pb-16">
       {/* Top Breadcrumb & Actions */}
@@ -122,6 +210,14 @@ export default function CampaignDetailPage() {
           <ArrowLeft className="w-3.5 h-3.5" /> Back to All Campaigns
         </Link>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCurrentTab}
+            className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-2xs"
+            title="Download CSV report for current view"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Export CSV</span>
+          </button>
           <button
             onClick={handleCopyKioskLink}
             className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-2xs"
@@ -381,9 +477,20 @@ export default function CampaignDetailPage() {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs focus:bg-white focus:border-emerald-500 focus:outline-none transition"
                 />
               </div>
-              <span className="text-xs text-slate-500 font-medium">
-                Showing {filteredCustomers.length} enrolled patron(s)
-              </span>
+              <div className="flex items-center gap-2.5">
+                <span className="text-xs text-slate-500 font-medium">
+                  Showing {filteredCustomers.length} enrolled patron(s)
+                </span>
+                <button
+                  onClick={handleExportCustomers}
+                  disabled={customers.length === 0}
+                  className="inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 text-emerald-800 font-bold text-xs px-3 py-1.5 rounded-xl border border-emerald-200 transition cursor-pointer"
+                  title="Export patron list to CSV"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>Download CSV</span>
+                </button>
+              </div>
             </div>
 
             {filteredCustomers.length > 0 ? (
@@ -478,9 +585,20 @@ export default function CampaignDetailPage() {
         {/* Tab 2: Live QR Scans Log */}
         {activeTab === 'scans' && (
           <div className="p-6 space-y-4">
-            <div className="flex items-center justify-between text-xs text-slate-500">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
               <span className="font-semibold text-slate-700">Audit Trail of QR Token Check-Ins</span>
-              <span>Total recorded: {recentScans.length} scan(s)</span>
+              <div className="flex items-center gap-2.5">
+                <span>Total recorded: {recentScans.length} scan(s)</span>
+                <button
+                  onClick={handleExportScans}
+                  disabled={recentScans.length === 0}
+                  className="inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 text-emerald-800 font-bold text-xs px-3 py-1.5 rounded-xl border border-emerald-200 transition cursor-pointer"
+                  title="Export scan logs to CSV"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>Download CSV</span>
+                </button>
+              </div>
             </div>
 
             {recentScans.length > 0 ? (
@@ -544,9 +662,20 @@ export default function CampaignDetailPage() {
         {/* Tab 3: Vouchers & Redemptions */}
         {activeTab === 'redemptions' && (
           <div className="p-6 space-y-4">
-            <div className="flex items-center justify-between text-xs text-slate-500">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
               <span className="font-semibold text-slate-700">Completed Milestone Vouchers & Redemptions</span>
-              <span>Total issued: {redemptions.length} voucher(s)</span>
+              <div className="flex items-center gap-2.5">
+                <span>Total issued: {redemptions.length} voucher(s)</span>
+                <button
+                  onClick={handleExportRedemptions}
+                  disabled={redemptions.length === 0}
+                  className="inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 text-emerald-800 font-bold text-xs px-3 py-1.5 rounded-xl border border-emerald-200 transition cursor-pointer"
+                  title="Export vouchers to CSV"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>Download CSV</span>
+                </button>
+              </div>
             </div>
 
             {redemptions.length > 0 ? (

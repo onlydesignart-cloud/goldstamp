@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../lib/auth-context';
 import { api } from '../../../lib/api';
+import { exportToCsv } from '../../../lib/exportCsv';
 import {
   Users,
   Search,
@@ -14,6 +15,7 @@ import {
   Award,
   Sparkles,
   Gift,
+  Download,
 } from 'lucide-react';
 
 export default function ClientCustomersPage() {
@@ -63,6 +65,37 @@ export default function ClientCustomersPage() {
     return c.campaign?.name === selectedCampaign;
   });
 
+  const handleExportCustomers = () => {
+    if (!filteredCustomers || filteredCustomers.length === 0) return;
+    const bizName = (business?.name || 'merchant').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const filename = `${bizName}_customers_${new Date().toISOString().split('T')[0]}`;
+    const headers = [
+      'Customer ID',
+      'Name',
+      'Email',
+      'Phone',
+      'Enrolled Campaign',
+      'Total Visits',
+      'Stamps Collected',
+      'Points',
+      'Last Visit',
+      'Joined Date',
+    ];
+    const rows = filteredCustomers.map((c: any) => [
+      c.id || 'N/A',
+      c.user?.name || 'Customer',
+      c.user?.email || 'N/A',
+      c.user?.phone || 'N/A',
+      c.campaign?.name || 'Standard Loyalty',
+      c.visitsCount ?? 0,
+      c.stampsCount ?? 0,
+      c.points ?? 0,
+      c.lastVisit ? new Date(c.lastVisit).toLocaleDateString() : 'N/A',
+      c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'N/A',
+    ]);
+    exportToCsv(filename, headers, rows);
+  };
+
   return (
     <div className="space-y-6 max-w-6xl">
       {/* Page Header */}
@@ -82,6 +115,15 @@ export default function ClientCustomersPage() {
         </div>
 
         <div className="flex items-center gap-2 text-xs">
+          <button
+            onClick={handleExportCustomers}
+            disabled={filteredCustomers.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-700 font-bold shadow-2xs transition cursor-pointer"
+            title="Download customers list as CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Export CSV</span>
+          </button>
           <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 font-medium shadow-sm">
             Total Members: <span className="font-bold text-slate-900">{customers.length}</span>
           </div>
