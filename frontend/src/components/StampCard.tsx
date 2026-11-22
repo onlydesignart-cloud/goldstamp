@@ -133,15 +133,27 @@ export const StampCard: React.FC<StampCardProps> = ({
       <div className={compact ? 'p-4 sm:p-5' : 'p-5'}>
         <div
           className={`grid gap-2 sm:gap-2.5 ${
-            safeTarget <= 5
+            safeTarget === 2
+              ? 'grid-cols-2'
+              : safeTarget === 3
+              ? 'grid-cols-3'
+              : safeTarget === 4
+              ? 'grid-cols-4'
+              : safeTarget === 5
               ? 'grid-cols-5'
               : safeTarget === 6
               ? 'grid-cols-3 sm:grid-cols-6'
+              : safeTarget === 7
+              ? 'grid-cols-4 sm:grid-cols-7'
               : safeTarget === 8
               ? 'grid-cols-4'
+              : safeTarget === 9
+              ? 'grid-cols-3 sm:grid-cols-5'
+              : safeTarget === 10
+              ? 'grid-cols-5'
               : safeTarget === 12
               ? 'grid-cols-4 sm:grid-cols-6'
-              : 'grid-cols-5'
+              : 'grid-cols-5 sm:grid-cols-6'
           }`}
         >
           {Array.from({ length: safeTarget }).map((_, index) => {

@@ -1635,44 +1635,57 @@ class MockDataStore {
   public getCustomerLoyalty(userId: string) {
     const db = this.getDb();
     const customerLinks = db.customerBusinesses.filter((cb) => cb.userId === userId);
+    const results: any[] = [];
 
-    return customerLinks.map((cb) => {
+    customerLinks.forEach((cb) => {
       const biz = db.businesses.find((b) => b.id === cb.businessId);
-      const campaign = db.campaigns.find((c) => c.businessId === cb.businessId) || db.campaigns[0];
-      const target = campaign?.rules?.[0]?.conditionValue || 10;
-      const cycleStamps = cb.totalStamps % target === 0 && cb.totalStamps > 0 ? target : cb.totalStamps % target;
-      const rewardTitle = campaign?.rewards?.[0]?.title || 'Milestone Reward';
+      const bizCampaigns = db.campaigns
+        .filter((c) => c.businessId === cb.businessId)
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
-      return {
-        id: cb.id,
-        businessId: cb.businessId,
-        businessName: biz?.name || 'Local Venue',
-        businessSlug: biz?.slug || 'venue',
-        businessLogo: biz?.logo || null,
-        industry: biz?.industry?.name || 'Local Commerce',
-        activeCampaign: {
-          name: campaign?.name || 'Loyalty Program',
-          rewardTitle,
-          type: campaign?.type || 'STAMP',
+      const activeCampaigns = bizCampaigns.filter((c) => c.status === 'ACTIVE');
+      const targetCampaigns = activeCampaigns.length > 0 ? activeCampaigns : (bizCampaigns.length > 0 ? [bizCampaigns[0]] : [db.campaigns[0]]);
+
+      targetCampaigns.forEach((campaign, idx) => {
+        const rule = campaign?.rules?.[0];
+        const target = Number(rule?.conditionValue || campaign?.targetStamps || campaign?.targetVisits || 10);
+        const cycleStamps = cb.totalStamps % target === 0 && cb.totalStamps > 0 ? target : cb.totalStamps % target;
+        const rewardTitle = campaign?.rewards?.[0]?.title || rule?.rewardValue || 'Milestone Reward';
+
+        results.push({
+          id: `${cb.id}_${campaign?.id || idx}`,
+          businessId: cb.businessId,
+          businessName: biz?.name || 'Local Venue',
+          businessSlug: biz?.slug || 'venue',
+          businessLogo: biz?.logo || null,
+          industry: biz?.industry?.name || 'Local Commerce',
+          activeCampaign: {
+            id: campaign?.id,
+            name: campaign?.name || 'Loyalty Program',
+            rewardTitle,
+            type: campaign?.type || 'STAMP',
+            targetStamps: target,
+            targetVisits: target,
+            milestoneTarget: target,
+          },
+          currentStamps: cycleStamps,
           targetStamps: target,
           targetVisits: target,
+          totalVisits: cb.totalVisits,
+          totalStamps: cb.totalStamps,
+          cycleStamps,
           milestoneTarget: target,
-        },
-        currentStamps: cycleStamps,
-        targetStamps: target,
-        targetVisits: target,
-        totalVisits: cb.totalVisits,
-        totalStamps: cb.totalStamps,
-        cycleStamps,
-        milestoneTarget: target,
-        totalPoints: cb.totalPoints,
-        joinedAt: cb.joinedAt,
-        lastVisitAt: cb.lastVisitAt,
-        unlockedRewards: db.redemptions.filter((r) => r.userId === userId && r.businessId === cb.businessId),
-        business: biz,
-        campaign,
-      };
+          totalPoints: cb.totalPoints,
+          joinedAt: cb.joinedAt,
+          lastVisitAt: cb.lastVisitAt,
+          unlockedRewards: db.redemptions.filter((r) => r.userId === userId && r.businessId === cb.businessId),
+          business: biz,
+          campaign,
+        });
+      });
     });
+
+    return results;
   }
 
   // --- Campaigns Management ---

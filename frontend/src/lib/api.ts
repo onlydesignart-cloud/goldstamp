@@ -1038,19 +1038,21 @@ export const api = {
           .maybeSingle();
 
         if (!error && dbBiz) {
-          const formattedCampaigns = (dbBiz.campaigns || []).map((c: any) => {
-            const rule = c.rules?.[0];
-            const reward = c.rewards?.[0];
-            const targetStamps = Number(rule?.conditionValue) || Number(c.targetVisits) || 10;
-            const rewardTitle = reward?.title || rule?.rewardValue || 'Milestone Reward';
-            return {
-              ...c,
-              targetStamps,
-              targetVisits: targetStamps,
-              milestoneTarget: targetStamps,
-              rewardTitle,
-            };
-          });
+          const formattedCampaigns = (dbBiz.campaigns || [])
+            .map((c: any) => {
+              const rule = c.rules?.[0];
+              const reward = c.rewards?.[0];
+              const targetStamps = Number(rule?.conditionValue) || Number(c.targetVisits) || 10;
+              const rewardTitle = reward?.title || rule?.rewardValue || 'Milestone Reward';
+              return {
+                ...c,
+                targetStamps,
+                targetVisits: targetStamps,
+                milestoneTarget: targetStamps,
+                rewardTitle,
+              };
+            })
+            .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
           const activeCampaign = formattedCampaigns.find((c: any) => c.status === 'ACTIVE') || formattedCampaigns[0] || null;
           const formatted = {
             ...dbBiz,
@@ -1200,9 +1202,18 @@ export const api = {
           .eq('id', id)
           .maybeSingle();
         if (!error && camp) {
+          const rule = camp.rules?.[0];
+          const reward = camp.rewards?.[0];
+          const targetStamps = Number(rule?.conditionValue) || Number(camp.targetVisits) || 10;
           return {
             success: true,
-            data: camp,
+            data: {
+              ...camp,
+              targetStamps,
+              targetVisits: targetStamps,
+              milestoneTarget: targetStamps,
+              rewardTitle: reward?.title || rule?.rewardValue || 'Loyalty Reward',
+            },
           };
         }
       } catch (err) {
@@ -1211,8 +1222,186 @@ export const api = {
     }
     return asyncWrap(() => {
       const db = mockStore.getRaw();
-      return db.campaigns.find((c) => c.id === id) || db.campaigns[0];
+      const c = db.campaigns.find((c) => c.id === id) || db.campaigns[0];
+      const target = Number(c?.rules?.[0]?.conditionValue || c?.targetStamps || 10);
+      return {
+        ...c,
+        targetStamps: target,
+        targetVisits: target,
+        milestoneTarget: target,
+        rewardTitle: c?.rewards?.[0]?.title || 'Loyalty Reward',
+      };
     });
+  },
+
+  getCampaignDetails: async (id: string): Promise<ApiResponse<any>> => {
+    let camp: any = null;
+    let visits: any[] = [];
+    let stampTxs: any[] = [];
+    let redemptions: any[] = [];
+    const customersMap: Record<string, any> = {};
+
+    if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient();
+        const { data: dbCamp } = await supabase
+          .from('Campaign')
+          .select('*, rules:CampaignRule(*), rewards:Reward(*), business:Business(*)')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (dbCamp) {
+          camp = dbCamp;
+          const targetStamps = Number(camp.rules?.[0]?.conditionValue) || Number(camp.targetStamps) || 10;
+
+          // 1. Fetch Visits for this campaign or business
+          const { data: dbVisits } = await supabase
+            .from('Visit')
+            .select('*, user:User(*)')
+            .eq('businessId', camp.businessId)
+            .order('createdAt', { ascending: false })
+            .limit(100);
+          if (dbVisits) visits = dbVisits;
+
+          // 2. Fetch Stamp Transactions
+          const { data: dbStamps } = await supabase
+            .from('StampTransaction')
+            .select('*, user:User(*)')
+            .eq('campaignId', id)
+            .order('createdAt', { ascending: false })
+            .limit(200);
+          if (dbStamps) stampTxs = dbStamps;
+
+          // 3. Fetch Redemptions
+          const { data: dbRedemptions } = await supabase
+            .from('RewardRedemption')
+            .select('*, user:User(*), reward:Reward(*)')
+            .eq('businessId', camp.businessId)
+            .order('issuedAt', { ascending: false })
+            .limit(100);
+          if (dbRedemptions) redemptions = dbRedemptions;
+
+          // 4. Fetch Customers linked to this business
+          const { data: dbCbs } = await supabase
+            .from('CustomerBusiness')
+            .select('*, user:User(*)')
+            .eq('businessId', camp.businessId);
+
+          if (dbCbs) {
+            dbCbs.forEach((cb: any) => {
+              const u = cb.user || { name: 'Customer Member', email: 'patron@example.com' };
+              const userStamps = stampTxs.filter((s: any) => s.userId === cb.userId).length || cb.totalStamps || 0;
+              const userVisits = visits.filter((v: any) => v.userId === cb.userId).length || cb.totalVisits || 0;
+              const cycleStamps = (userStamps % targetStamps === 0 && userStamps > 0) ? targetStamps : (userStamps % targetStamps);
+              const isRewardReady = userStamps >= targetStamps;
+
+              customersMap[cb.userId] = {
+                id: cb.userId,
+                name: u.name || 'Customer Member',
+                email: u.email || '',
+                phone: u.phone || '',
+                totalStamps: userStamps,
+                totalVisits: userVisits,
+                cycleStamps,
+                targetStamps,
+                isRewardReady,
+                lastVisitAt: cb.lastVisitAt || new Date().toISOString(),
+                joinedAt: cb.joinedAt || new Date().toISOString(),
+              };
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase getCampaignDetails error:', err);
+      }
+    }
+
+    // Fallback or fill from mockStore
+    if (!camp) {
+      const db = mockStore.getRaw();
+      camp = db.campaigns.find((c: any) => c.id === id) || db.campaigns[0];
+      const targetStamps = Number(camp?.rules?.[0]?.conditionValue || camp?.targetStamps || 10);
+
+      const mockVisits = db.visits.filter((v: any) => v.campaignId === id || v.businessId === camp?.businessId);
+      visits = mockVisits.map((v: any) => {
+        const u = db.users.find((user: any) => user.id === v.userId) || { name: 'Customer Patron', email: 'patron@example.com' };
+        return { ...v, user: u };
+      });
+
+      const mockRedemptions = db.redemptions.filter((r: any) => r.businessId === camp?.businessId);
+      redemptions = mockRedemptions.map((r: any) => {
+        const u = db.users.find((user: any) => user.id === r.userId) || { name: 'Customer Patron', email: 'patron@example.com' };
+        return { ...r, user: u };
+      });
+
+      const mockCbs = db.customerBusinesses.filter((cb: any) => cb.businessId === camp?.businessId);
+      mockCbs.forEach((cb: any) => {
+        const u = db.users.find((user: any) => user.id === cb.userId) || { name: 'Customer Patron', email: 'patron@example.com' };
+        const cycleStamps = (cb.totalStamps % targetStamps === 0 && cb.totalStamps > 0) ? targetStamps : (cb.totalStamps % targetStamps);
+        customersMap[cb.userId] = {
+          id: cb.userId,
+          name: u.name,
+          email: u.email,
+          phone: u.phone || null,
+          totalStamps: cb.totalStamps,
+          totalVisits: cb.totalVisits,
+          cycleStamps,
+          targetStamps,
+          isRewardReady: cb.totalStamps >= targetStamps,
+          lastVisitAt: cb.lastVisitAt,
+          joinedAt: cb.joinedAt,
+        };
+      });
+    }
+
+    const targetStamps = Number(camp?.rules?.[0]?.conditionValue || camp?.targetStamps || camp?.targetVisits || 10);
+    const customers = Object.values(customersMap);
+    const totalVisitsCount = visits.length;
+    const totalStampsIssued = customers.reduce((sum: number, c: any) => sum + (c.totalStamps || 0), 0) || totalVisitsCount;
+    const completedRewardsCount = customers.filter((c: any) => c.totalStamps >= targetStamps).length;
+    const claimedVouchersCount = redemptions.length;
+    const completionRate = customers.length > 0 ? Math.round((completedRewardsCount / customers.length) * 100) : 0;
+
+    return {
+      success: true,
+      data: {
+        campaign: {
+          ...camp,
+          targetStamps,
+          targetVisits: targetStamps,
+          milestoneTarget: targetStamps,
+          rewardTitle: camp?.rewards?.[0]?.title || camp?.rules?.[0]?.rewardValue || 'Loyalty Reward',
+        },
+        targetStamps,
+        stats: {
+          totalVisits: totalVisitsCount,
+          totalStampsIssued,
+          uniqueCustomers: customers.length,
+          completedRewardsCount,
+          claimedVouchersCount,
+          completionRate: Math.min(100, Math.max(0, completionRate)),
+        },
+        customers,
+        recentScans: visits.map((v: any) => ({
+          id: v.id,
+          customerName: v.user?.name || 'Customer Patron',
+          customerEmail: v.user?.email || '',
+          customerPhone: v.user?.phone || '',
+          timestamp: v.createdAt || v.timestamp || new Date().toISOString(),
+          verificationMethod: v.verificationMethod || 'QR',
+          deviceInfo: v.deviceInfo || 'Mobile Web',
+          stampsEarned: 1,
+        })),
+        redemptions: redemptions.map((r: any) => ({
+          id: r.id,
+          customerName: r.user?.name || 'Customer Patron',
+          rewardTitle: r.reward?.title || r.rewardTitle || 'Milestone Perk',
+          voucherCode: r.voucherCode || r.code || 'GS-VOUCHER',
+          status: r.status || 'AVAILABLE',
+          issuedAt: r.issuedAt || r.redeemedAt || new Date().toISOString(),
+        })),
+      },
+    };
   },
 
   createCampaign: async (businessId: string, data: any): Promise<ApiResponse<any>> => {
@@ -1936,48 +2125,57 @@ export const api = {
           .eq('userId', userId);
 
         if (!error && memberships && memberships.length > 0) {
-          const formatted = memberships.map((m: any) => {
+          const formatted: any[] = [];
+          memberships.forEach((m: any) => {
             const biz = m.business;
-            const activeCamp = biz?.campaigns?.find((c: any) => c.status === 'ACTIVE') || biz?.campaigns?.[0] || null;
-            const rule = activeCamp?.rules?.[0];
-            const reward = activeCamp?.rewards?.[0];
-            const target = Number(rule?.conditionValue) || Number(activeCamp?.targetVisits) || 10;
-            const totalStamps = Number(m.totalStamps) || 0;
-            const cycleStamps = (totalStamps % target === 0 && totalStamps > 0) ? target : (totalStamps % target);
-            const rewardTitle = reward?.title || rule?.rewardValue || 'Milestone Reward';
+            const campaigns = [...(biz?.campaigns || [])].sort(
+              (a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+            );
+            const activeCampaigns = campaigns.filter((c: any) => c.status === 'ACTIVE');
+            const targetCampaigns = activeCampaigns.length > 0 ? activeCampaigns : (campaigns.length > 0 ? [campaigns[0]] : [null]);
 
-            return {
-              id: m.id,
-              businessId: m.businessId,
-              userId: m.userId,
-              businessName: biz?.name || 'Local Venue',
-              businessSlug: biz?.slug || 'venue',
-              businessLogo: biz?.logo || null,
-              industry: biz?.industry?.name || 'Local Commerce',
-              status: m.status,
-              totalVisits: m.totalVisits || 0,
-              totalStamps: totalStamps,
-              totalPoints: m.totalPoints || 0,
-              targetStamps: target,
-              targetVisits: target,
-              milestoneTarget: target,
-              currentStamps: cycleStamps,
-              cycleStamps: cycleStamps,
-              lastVisitAt: m.lastVisitAt,
-              joinedAt: m.joinedAt,
-              business: biz,
-              campaign: activeCamp,
-              activeCampaign: activeCamp ? {
-                id: activeCamp.id,
-                name: activeCamp.name,
-                type: activeCamp.type,
+            targetCampaigns.forEach((activeCamp: any, idx: number) => {
+              const rule = activeCamp?.rules?.[0];
+              const reward = activeCamp?.rewards?.[0];
+              const target = Number(rule?.conditionValue) || Number(activeCamp?.targetStamps) || Number(activeCamp?.targetVisits) || 10;
+              const totalStamps = Number(m.totalStamps) || 0;
+              const cycleStamps = (totalStamps % target === 0 && totalStamps > 0) ? target : (totalStamps % target);
+              const rewardTitle = reward?.title || rule?.rewardValue || 'Milestone Reward';
+
+              formatted.push({
+                id: `${m.id}_${activeCamp?.id || idx}`,
+                membershipId: m.id,
+                businessId: m.businessId,
+                userId: m.userId,
+                businessName: biz?.name || 'Local Venue',
+                businessSlug: biz?.slug || 'venue',
+                businessLogo: biz?.logo || null,
+                industry: biz?.industry?.name || 'Local Commerce',
+                status: m.status,
+                totalVisits: m.totalVisits || 0,
+                totalStamps: totalStamps,
+                totalPoints: m.totalPoints || 0,
                 targetStamps: target,
                 targetVisits: target,
                 milestoneTarget: target,
-                rewardTitle,
-                rewardId: reward?.id,
-              } : null,
-            };
+                currentStamps: cycleStamps,
+                cycleStamps: cycleStamps,
+                lastVisitAt: m.lastVisitAt,
+                joinedAt: m.joinedAt,
+                business: biz,
+                campaign: activeCamp,
+                activeCampaign: activeCamp ? {
+                  id: activeCamp.id,
+                  name: activeCamp.name,
+                  type: activeCamp.type,
+                  targetStamps: target,
+                  targetVisits: target,
+                  milestoneTarget: target,
+                  rewardTitle,
+                  rewardId: reward?.id,
+                } : null,
+              });
+            });
           });
           return {
             success: true,

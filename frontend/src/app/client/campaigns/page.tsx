@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../../lib/auth-context';
 import { api } from '../../../lib/api';
-import { Megaphone, Plus, Gift, CheckCircle2, Clock, Eye } from 'lucide-react';
+import { Megaphone, Plus, Gift, CheckCircle2, Clock, Eye, BarChart3, Users, ArrowRight } from 'lucide-react';
 
 export default function ClientCampaignsPage() {
   const { business } = useAuth();
@@ -112,6 +112,17 @@ export default function ClientCampaignsPage() {
                     <span className="font-mono font-bold text-slate-700">
                       {camp._count?.stampTransactions || 0}
                     </span>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
+                    <Link
+                      href={`/client/campaigns/${camp.id}`}
+                      className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition shadow-xs"
+                    >
+                      <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>View Details & Customers</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                    </Link>
                   </div>
                 </div>
               </div>
