@@ -1,17 +1,86 @@
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 
+// In-memory rate limiting map for OTP dispatch (prevents email spam / quota exhaustion)
+// Key: email or IP, Value: array of timestamps
+const rateLimitMap: Map<string, number[]> = new Map();
+const MAX_REQUESTS_PER_WINDOW = 3;
+const WINDOW_MS = 60 * 1000; // 60 seconds
+
+function checkRateLimit(key: string): boolean {
+  const now = Date.now();
+  const timestamps = rateLimitMap.get(key) || [];
+  const validTimestamps = timestamps.filter((t) => now - t < WINDOW_MS);
+
+  if (validTimestamps.length >= MAX_REQUESTS_PER_WINDOW) {
+    rateLimitMap.set(key, validTimestamps);
+    return false;
+  }
+
+  validTimestamps.push(now);
+  rateLimitMap.set(key, validTimestamps);
+  return true;
+}
+
+function escapeHtml(str: unknown): string {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 export async function POST(req: Request) {
   try {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || 'anonymous';
     const body = await req.json();
     const { email, code, businessName, name, type = 'MERCHANT' } = body;
 
-    if (!email || !code) {
+    // 1. Strict Server-Side Input Validation
+    if (!email || typeof email !== 'string') {
       return NextResponse.json(
-        { success: false, error: 'Email and OTP code are required' },
+        { success: false, error: 'A valid email address is required.' },
         { status: 400 }
       );
     }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid email address format.' },
+        { status: 400 }
+      );
+    }
+
+    // 2. Strict OTP Code Format (Must be exactly 4 digits)
+    const cleanCode = String(code || '').trim();
+    if (!/^\d{4}$/.test(cleanCode)) {
+      return NextResponse.json(
+        { success: false, error: 'Security code must be a 4-digit number.' },
+        { status: 400 }
+      );
+    }
+
+    // 3. Rate-Limiting Protection (Max 3 OTPs per minute per IP / Email)
+    if (!checkRateLimit(`${ip}:${cleanEmail}`)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'RATE_LIMIT_EXCEEDED: Too many OTP requests. Please wait 60 seconds before requesting a new code.',
+        },
+        { status: 429 }
+      );
+    }
+
+    // 4. Sanitize strings to prevent email HTML injection
+    const safeName = escapeHtml(name || '');
+    const safeBizName = escapeHtml(businessName || '');
+    const isMerchant = type === 'MERCHANT';
+    const recipientName = safeName || (isMerchant ? safeBizName || 'Business Owner' : 'Customer');
+    const subject = `GoldStamp Security: Your 4-Digit Verification Code is ${cleanCode}`;
 
     const smtpUser = process.env.SMTP_USER || 'goldstamployalty@gmail.com';
     const smtpPass = process.env.SMTP_PASS || 'kyeiumidwllzyojl';
@@ -25,10 +94,6 @@ export async function POST(req: Request) {
         pass: smtpPass,
       },
     });
-
-    const isMerchant = type === 'MERCHANT';
-    const recipientName = name || (isMerchant ? businessName || 'Business Owner' : 'Customer');
-    const subject = `GoldStamp Security: Your 4-Digit Verification Code is ${code}`;
 
     const htmlContent = `
     <!DOCTYPE html>
@@ -57,7 +122,7 @@ export async function POST(req: Request) {
             </p>
 
             <div style="background: #f8fafc; border: 2px dashed #10b981; border-radius: 16px; padding: 20px 16px; margin: 0 auto 24px auto; max-width: 280px;">
-              <span style="font-family: 'Courier New', Courier, monospace; font-size: 44px; font-weight: 900; letter-spacing: 14px; color: #0f172a; display: inline-block; padding-left: 14px;">${code}</span>
+              <span style="font-family: 'Courier New', Courier, monospace; font-size: 44px; font-weight: 900; letter-spacing: 14px; color: #0f172a; display: inline-block; padding-left: 14px;">${cleanCode}</span>
             </div>
 
             <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 0 0 8px 0;">
@@ -81,7 +146,7 @@ export async function POST(req: Request) {
 
     const info = await transporter.sendMail({
       from: '"GoldStamp Security" <goldstamployalty@gmail.com>',
-      to: email,
+      to: cleanEmail,
       subject,
       html: htmlContent,
     });

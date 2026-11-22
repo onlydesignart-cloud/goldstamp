@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../lib/auth-context';
 import { api } from '../../../lib/api';
+import { sanitizeVoucherCode } from '../../../lib/security';
 import { CheckCircle2, Gift, Search, AlertCircle, Sparkles, Check, Clock, ArrowRight } from 'lucide-react';
 
 export default function ClientRedemptionsPage() {
@@ -42,7 +43,11 @@ export default function ClientRedemptionsPage() {
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!code.trim()) return;
+    const cleanCode = sanitizeVoucherCode(code);
+    if (!cleanCode || cleanCode.length < 3) {
+      setErrorMsg('Please enter a valid voucher code (e.g. SMASH-7K9A2).');
+      return;
+    }
 
     const targetBizId = resolveBizId();
     setLoading(true);
@@ -50,7 +55,7 @@ export default function ClientRedemptionsPage() {
     setErrorMsg(null);
 
     try {
-      const res = await api.verifyRedemption(targetBizId, code.trim());
+      const res = await api.verifyRedemption(targetBizId, cleanCode);
       if (res.success && res.data) {
         setSuccessMsg(`Voucher redeemed: ${res.data.rewardTitle || 'Reward'} credited to ${res.data.customerName || 'Customer'}.`);
         setCode('');

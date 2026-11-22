@@ -35,6 +35,25 @@ export default function CreateCampaignSimplePage() {
 
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    // Client-side validation guard
+    const cleanName = campaignName.trim();
+    if (!cleanName || cleanName.length < 2) {
+      setError('Please provide a valid campaign name (at least 2 characters).');
+      return;
+    }
+    const cleanReward = rewardTitle.trim();
+    if (!cleanReward || cleanReward.length < 2) {
+      setError('Please provide a milestone reward title (e.g. Free Coffee, 1 Hour Free Court Session).');
+      return;
+    }
+    const numStamps = Number(targetStamps);
+    if (isNaN(numStamps) || numStamps < 2 || numStamps > 50 || !Number.isInteger(numStamps)) {
+      setError('Target stamps must be a valid whole number between 2 and 50.');
+      return;
+    }
+
     let targetBizId = business?.id;
     if (!targetBizId && typeof window !== 'undefined') {
       try {
@@ -44,7 +63,6 @@ export default function CreateCampaignSimplePage() {
     }
     if (!targetBizId) targetBizId = 'biz_test';
     setLoading(true);
-    setError(null);
 
     try {
       const res = await api.createCampaign(targetBizId, {

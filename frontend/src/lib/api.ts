@@ -8,6 +8,10 @@ import {
   sanitizeVoucherCode,
   safeJsonParse,
   checkClientRateLimit,
+  validateCampaignInput,
+  validateEmail,
+  validatePassword,
+  validatePhone,
 } from './security';
 
 export interface ApiResponse<T = any> {
@@ -1406,12 +1410,19 @@ export const api = {
 
   createCampaign: async (businessId: string, data: any): Promise<ApiResponse<any>> => {
     return asyncWrap(async () => {
+      // Strict Server-Side / API Input Validation & Sanitization
+      const validation = validateCampaignInput(data);
+      if (!validation.isValid) {
+        throw new Error(`VALIDATION_ERROR: ${validation.error}`);
+      }
+      const cleanData = validation.cleanData;
+
       const campId = `camp_${Date.now()}`;
       const rewardId = `rew_${Date.now()}`;
       const ruleId = `rule_${Date.now()}`;
 
       // 1. Sync into in-memory mock store
-      const mockResult = mockStore.createCampaign(businessId, data);
+      const mockResult = mockStore.createCampaign(businessId, cleanData);
 
       // 2. Direct Write into Live Supabase PostgreSQL
       if (typeof window !== 'undefined') {
@@ -1451,12 +1462,12 @@ export const api = {
           const { error: cErr } = await supabase.from('Campaign').insert({
             id: campId,
             businessId: validBizId,
-            name: data.name,
-            description: data.description || 'Collect 1 stamp per visit. Complete the card to unlock your reward!',
-            type: data.type || 'STAMP',
+            name: cleanData.name,
+            description: cleanData.description || 'Collect 1 stamp per visit. Complete the card to unlock your reward!',
+            type: cleanData.type || 'STAMP',
             status: 'ACTIVE',
             startDate: new Date().toISOString(),
-            isRecurring: data.isRecurring !== undefined ? data.isRecurring : true,
+            isRecurring: cleanData.isRecurring !== undefined ? cleanData.isRecurring : true,
             updatedAt: new Date().toISOString(),
           });
           if (cErr) console.warn('Supabase Campaign insert error:', cErr);
@@ -1465,10 +1476,10 @@ export const api = {
           const { error: rErr } = await supabase.from('CampaignRule').insert({
             id: ruleId,
             campaignId: campId,
-            conditionType: data.conditionType || 'STAMP_COUNT',
-            conditionValue: Number(data.conditionValue || 10),
-            rewardType: data.rewardType || 'FREE_SERVICE',
-            rewardValue: data.rewardValue || data.rewardTitle || 'Loyalty Reward',
+            conditionType: cleanData.conditionType || 'STAMP_COUNT',
+            conditionValue: Number(cleanData.conditionValue || 10),
+            rewardType: cleanData.rewardType || 'FREE_SERVICE',
+            rewardValue: cleanData.rewardValue || cleanData.rewardTitle || 'Loyalty Reward',
           });
           if (rErr) console.warn('Supabase CampaignRule insert error:', rErr);
 
@@ -1477,10 +1488,10 @@ export const api = {
             id: rewardId,
             businessId: validBizId,
             campaignId: campId,
-            title: data.rewardTitle || 'Loyalty Reward',
-            description: data.description || 'Redeem after completing your stamp card',
-            type: data.rewardType || 'FREE_SERVICE',
-            value: data.rewardValue || data.rewardTitle || 'Loyalty Reward',
+            title: cleanData.rewardTitle || 'Loyalty Reward',
+            description: cleanData.description || 'Redeem after completing your stamp card',
+            type: cleanData.rewardType || 'FREE_SERVICE',
+            value: cleanData.rewardValue || cleanData.rewardTitle || 'Loyalty Reward',
             status: 'AVAILABLE',
             updatedAt: new Date().toISOString(),
           });
@@ -1762,14 +1773,45 @@ export const api = {
             const bizId = qrRecord.businessId;
             let bizName = 'Local Venue';
             let bizSlug = 'venue';
+            let cooldownMinutes = 0;
             if (bizId) {
               try {
-                const { data: bData } = await supabase.from('Business').select('id, name, slug').eq('id', bizId).maybeSingle();
+                const { data: bData } = await supabase.from('Business').select('id, name, slug, cooldownMinutes').eq('id', bizId).maybeSingle();
                 if (bData) {
                   bizName = bData.name || bizName;
                   bizSlug = bData.slug || bizSlug;
+                  if (typeof bData.cooldownMinutes === 'number') {
+                    cooldownMinutes = bData.cooldownMinutes;
+                  }
                 }
               } catch {}
+            }
+
+            // Anti-Fraud 3: Anti-Cheat Cooldown Enforcement (Prevents multiple scans in quick succession)
+            if (cooldownMinutes > 0 && activeCustId) {
+              try {
+                const { data: recentVisits } = await supabase
+                  .from('Visit')
+                  .select('createdAt')
+                  .eq('userId', activeCustId)
+                  .eq('businessId', bizId)
+                  .order('createdAt', { ascending: false })
+                  .limit(1);
+
+                if (recentVisits && recentVisits.length > 0) {
+                  const lastVisitMs = parseUtcDate(recentVisits[0].createdAt);
+                  const elapsedMs = Date.now() - lastVisitMs;
+                  const cooldownMs = cooldownMinutes * 60 * 1000;
+                  if (lastVisitMs > 0 && elapsedMs < cooldownMs) {
+                    const remainingMins = Math.ceil((cooldownMs - elapsedMs) / (60 * 1000));
+                    throw new Error(
+                      `COOLDOWN_ACTIVE: You have already checked in recently. Cooldown protects against duplicate stamp fraud. Please wait ${remainingMins} minute(s) before collecting another stamp.`
+                    );
+                  }
+                }
+              } catch (cdErr: any) {
+                if (cdErr.message?.startsWith('COOLDOWN_ACTIVE')) throw cdErr;
+              }
             }
 
             // C. Ensure Customer User exists in Supabase DB (prevent FK violation)
