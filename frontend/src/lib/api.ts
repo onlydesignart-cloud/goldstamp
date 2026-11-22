@@ -1884,6 +1884,23 @@ export const api = {
               mockStore.updateCustomerStamps(activeCustId, bizId, currentStamps, currentVisits, currentPoints);
             } catch {}
 
+            // J. Dispatch real-time Soundbox & celebration event for counter kiosks
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('goldstamp:counter_scan', {
+                  detail: {
+                    token: cleanToken,
+                    businessId: bizId,
+                    customerName,
+                    cycleStamps,
+                    milestoneTarget,
+                    rewardTitle: isMilestoneUnlocked ? rewardTitle : null,
+                    isMilestone: isMilestoneUnlocked,
+                  },
+                })
+              );
+            }
+
             return {
               id: visitId,
               customerName,
@@ -1920,6 +1937,22 @@ export const api = {
       // 4. Fallback to mockStore (for offline testing or demo tokens)
       try {
         const mockResult = mockStore.processCheckIn(cleanToken, activeCustId);
+        const m: any = mockResult;
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('goldstamp:counter_scan', {
+              detail: {
+                token: cleanToken,
+                businessId: m.business?.id || m.visit?.businessId || m.businessId,
+                customerName: m.visit?.user?.name || m.customerName || 'Customer',
+                cycleStamps: m.cycleStamps || m.currentStamps || m.stampsEarned || 1,
+                milestoneTarget: m.milestoneTarget || m.targetStamps || 5,
+                rewardTitle: m.unlockedReward || m.rewardTitle,
+                isMilestone: !!m.rewardUnlocked,
+              },
+            })
+          );
+        }
         return mockResult;
       } catch (mockErr: any) {
         throw new Error('INVALID_TOKEN: QR token is invalid, unrecognized, or has expired. Please scan a fresh counter QR code.');
