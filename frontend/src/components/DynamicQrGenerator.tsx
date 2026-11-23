@@ -226,23 +226,6 @@ export const DynamicQrGenerator: React.FC<DynamicQrGeneratorProps> = ({
     return () => window.removeEventListener('goldstamp:counter_scan', handleScanEvent);
   }, [businessId]);
 
-  // Simulation test click
-  const handleSimulateScan = async () => {
-    if (!qrData?.token) return;
-    try {
-      const res = await api.processCheckIn({
-        qrToken: qrData.token,
-        businessId,
-        metadata: { client: 'Counter Kiosk Simulator' },
-      });
-      if (res.success && res.data) {
-        // Handled automatically via event dispatch
-      }
-    } catch (e: any) {
-      console.warn('Simulation note:', e.message);
-    }
-  };
-
   useEffect(() => {
     fetchNewQr();
   }, [businessId, branchId, campaignId]);
@@ -421,7 +404,7 @@ export const DynamicQrGenerator: React.FC<DynamicQrGeneratorProps> = ({
           title="Play sample soundbox chime and announcement"
         >
           <Play className={`w-3 h-3 text-emerald-600 fill-emerald-600 ${testingSoundbox ? 'animate-spin' : ''}`} />
-          <span>{testingSoundbox ? 'Playing...' : 'Test Sound'}</span>
+          <span>{testingSoundbox ? 'Playing...' : 'Audio Preview'}</span>
         </button>
       </div>
 
@@ -534,18 +517,6 @@ export const DynamicQrGenerator: React.FC<DynamicQrGeneratorProps> = ({
         <div className="mt-3 text-center text-[10px] text-slate-400 max-w-xs leading-tight">
           Photos & screenshots cannot be reused. Once scanned, token is immediately burned and replaced.
         </div>
-      </div>
-
-      {/* Simulator Test Trigger */}
-      <div className="w-full mt-4 space-y-2">
-        <button
-          onClick={handleSimulateScan}
-          disabled={loading || !qrData?.token}
-          className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-sm disabled:opacity-50 cursor-pointer"
-        >
-          <Zap className="w-3.5 h-3.5 text-amber-300" />
-          <span>Simulate Scan (Test Voice Soundbox & Celebration)</span>
-        </button>
       </div>
     </div>
   );

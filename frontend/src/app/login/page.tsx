@@ -115,30 +115,13 @@ export default function CustomerLoginPage() {
 
       if (error) {
         console.warn('Supabase Google OAuth notice:', error);
-        // Fallback for seamless demo testing
-        const res = await loginWithGoogle({
-          email: email || 'customer.alex@gmail.com',
-          name: 'Google Customer',
-        });
-        if (res.success) {
-          router.push('/loyalty');
-        } else {
-          setError(res.error || 'Google Sign In failed.');
-          setLoading(false);
-        }
+        setError(error.message || 'Google Sign In could not be completed.');
+        setLoading(false);
       }
     } catch (err: any) {
       console.warn('Google OAuth exception:', err);
-      const res = await loginWithGoogle({
-        email: email || 'customer.alex@gmail.com',
-        name: 'Google Customer',
-      });
-      if (res.success) {
-        router.push('/loyalty');
-      } else {
-        setError(err?.message || 'Failed to connect to Google.');
-        setLoading(false);
-      }
+      setError(err?.message || 'Failed to connect to Google Auth.');
+      setLoading(false);
     }
   };
 

@@ -61,7 +61,10 @@ export default function CreateCampaignSimplePage() {
         if (storedBiz) targetBizId = JSON.parse(storedBiz).id;
       } catch {}
     }
-    if (!targetBizId) targetBizId = 'biz_test';
+    if (!targetBizId) {
+      setError('Please sign in to your merchant account to publish campaigns.');
+      return;
+    }
     setLoading(true);
 
     try {

@@ -22,11 +22,12 @@ export default function ClientRedemptionsPage() {
         if (storedBiz) targetBizId = JSON.parse(storedBiz).id;
       } catch {}
     }
-    return targetBizId || 'biz_test';
+    return targetBizId || '';
   };
 
   const loadRecent = async () => {
     const targetBizId = resolveBizId();
+    if (!targetBizId) return;
     try {
       const res = await api.getBusinessRedemptions(targetBizId);
       if (res.success && res.data) {

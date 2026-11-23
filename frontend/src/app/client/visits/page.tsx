@@ -25,9 +25,19 @@ export default function ClientVisitsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const targetBizId = business?.id || 'biz_smashzone';
+  let targetBizId = business?.id;
+  if (!targetBizId && typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('goldstamp_merchant_business');
+      if (stored) targetBizId = JSON.parse(stored).id;
+    } catch {}
+  }
 
   const loadData = async () => {
+    if (!targetBizId) {
+      setLoading(false);
+      return;
+    }
     try {
       setIsRefreshing(true);
       const [visitsRes, analyticsRes] = await Promise.all([
@@ -227,7 +237,7 @@ export default function ClientVisitsPage() {
             <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
               {searchTerm
                 ? `No visits matched "${searchTerm}". Try clearing your search.`
-                : 'No customer visits recorded yet. Test by scanning the counter QR code!'}
+                : 'No customer visits recorded yet. Visits will appear here live as patrons check in at your counter.'}
             </p>
             <div className="mt-4">
               <Link
@@ -248,11 +258,11 @@ export default function ClientVisitsPage() {
             <Sparkles className="w-4 h-4" />
           </div>
           <div>
-            <h4 className="text-xs font-bold text-slate-900">How to test visit recordings:</h4>
+            <h4 className="text-xs font-bold text-slate-900">How Counter Visits Work:</h4>
             <p className="text-[11px] text-slate-600 mt-0.5">
-              1. Open <Link href="/client/qr" className="underline font-semibold text-emerald-700">Counter QR Kiosk</Link> in one tab.<br />
-              2. Click <span className="font-semibold text-slate-800">"Simulate Customer Scan (+1 Stamp)"</span>.<br />
-              3. Come back to this page and click <span className="font-semibold text-slate-800">"Refresh Ledger"</span> — your new visit will appear at the top instantly!
+              1. Display your <Link href="/client/qr" className="underline font-semibold text-emerald-700">Counter QR Kiosk</Link> on a tablet or counter standee.<br />
+              2. Patrons point their phone camera at the dynamic QR code to check in.<br />
+              3. Stamp increments and verified visits are logged here in real-time.
             </p>
           </div>
         </div>
@@ -260,7 +270,7 @@ export default function ClientVisitsPage() {
           href="/client/qr"
           className="shrink-0 px-3.5 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition"
         >
-          Try Live Scan Now
+          Open Counter Kiosk
         </Link>
       </div>
     </div>

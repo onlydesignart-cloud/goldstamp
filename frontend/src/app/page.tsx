@@ -200,7 +200,7 @@ export default function HomePage() {
               Experience the Central Loyalty Loop Live
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 mt-2">
-              Simulate customer QR check-ins and watch how milestone rewards unlock automatically with anti-fraud verification codes.
+              See how customer QR check-ins work and how milestone rewards unlock automatically with anti-fraud verification codes.
             </p>
           </div>
 
@@ -283,18 +283,18 @@ export default function HomePage() {
               {sandboxStamps < 10 ? (
                 <button
                   onClick={handleSimulateScan}
-                  className="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 active:scale-95"
+                  className="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                 >
                   <QrCode className="w-4 h-4" />
-                  <span>Simulate Visit QR Scan ({sandboxStamps}/10)</span>
+                  <span>Try Visit Check-In ({sandboxStamps}/10)</span>
                 </button>
               ) : (
                 <button
                   onClick={handleResetSandbox}
-                  className="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition flex items-center justify-center gap-2"
+                  className="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  <span>Simulation Complete! Restart Test Loop</span>
+                  <span>Completed! Reset Card</span>
                 </button>
               )}
             </div>

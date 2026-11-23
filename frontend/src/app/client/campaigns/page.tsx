@@ -20,7 +20,10 @@ export default function ClientCampaignsPage() {
           if (storedBiz) targetBizId = JSON.parse(storedBiz).id;
         } catch {}
       }
-      if (!targetBizId) targetBizId = 'biz_test';
+      if (!targetBizId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const res = await api.getCampaigns(targetBizId);

@@ -26,10 +26,20 @@ export default function ClientCustomersPage() {
   const [selectedCampaign, setSelectedCampaign] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
-  const targetBizId = business?.id || 'biz_smashzone';
+  let targetBizId = business?.id;
+  if (!targetBizId && typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('goldstamp_merchant_business');
+      if (stored) targetBizId = JSON.parse(stored).id;
+    } catch {}
+  }
 
   useEffect(() => {
     async function load() {
+      if (!targetBizId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const query = new URLSearchParams();

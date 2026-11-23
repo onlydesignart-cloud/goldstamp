@@ -35,9 +35,19 @@ export default function ClientSubscriptionPage() {
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const targetBizId = business?.id || 'biz_smashzone';
+  let targetBizId = business?.id;
+  if (!targetBizId && typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('goldstamp_merchant_business');
+      if (stored) targetBizId = JSON.parse(stored).id;
+    } catch {}
+  }
 
   const loadData = async () => {
+    if (!targetBizId) {
+      setLoading(false);
+      return;
+    }
     setIsRefreshing(true);
     try {
       const [plansRes, subRes, invRes] = await Promise.all([
@@ -66,7 +76,7 @@ export default function ClientSubscriptionPage() {
   };
 
   const handleCompletePayment = async () => {
-    if (!checkoutPlan) return;
+    if (!checkoutPlan || !targetBizId) return;
     setProcessing(true);
     try {
       // 1. Create checkout order

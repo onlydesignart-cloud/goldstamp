@@ -55,7 +55,13 @@ export default function ClientSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
-  const targetBizId = business?.id || 'biz_smashzone';
+  let targetBizId = business?.id;
+  if (!targetBizId && typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('goldstamp_merchant_business');
+      if (stored) targetBizId = JSON.parse(stored).id;
+    } catch {}
+  }
 
   useEffect(() => {
     if (business) {
@@ -72,6 +78,10 @@ export default function ClientSettingsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!targetBizId) {
+      setSavedMessage('Please log in to your merchant account.');
+      return;
+    }
     setSaving(true);
     setSavedMessage(null);
 

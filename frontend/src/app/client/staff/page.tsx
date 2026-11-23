@@ -39,9 +39,19 @@ export default function ClientStaffPage() {
   const [saving, setSaving] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
-  const targetBizId = business?.id || 'biz_smashzone';
+  let targetBizId = business?.id;
+  if (!targetBizId && typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('goldstamp_merchant_business');
+      if (stored) targetBizId = JSON.parse(stored).id;
+    } catch {}
+  }
 
   const loadStaff = async () => {
+    if (!targetBizId) {
+      setLoading(false);
+      return;
+    }
     setIsRefreshing(true);
     try {
       const res = await api.getStaff(targetBizId);
@@ -62,6 +72,7 @@ export default function ClientStaffPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!targetBizId) return;
     setSaving(true);
     try {
       const res = await api.createStaff(targetBizId, {
@@ -90,39 +101,12 @@ export default function ClientStaffPage() {
   };
 
   const handleToggle = async (staffId: string) => {
+    if (!targetBizId) return;
     try {
       await api.toggleStaff(targetBizId, staffId);
       await loadStaff();
     } catch (err) {
       console.error('Failed to toggle staff status:', err);
-    }
-  };
-
-  // Quick 1-click test login as this staff member
-  const handleTestLogin = (staffMember: any) => {
-    const sEmail = staffMember.email || staffMember.user?.email;
-    const sName = staffMember.name || staffMember.user?.name || 'Staff Member';
-
-    if (typeof window !== 'undefined') {
-      const staffUser = {
-        id: staffMember.userId || staffMember.id,
-        name: sName,
-        email: sEmail,
-        role: 'BUSINESS_STAFF',
-        status: staffMember.isActive ? 'ACTIVE' : 'SUSPENDED',
-      };
-
-      const token = `mock_jwt_staff_${Date.now()}`;
-      localStorage.setItem('goldstamp_merchant_token', token);
-      localStorage.setItem('goldstamp_merchant_user', JSON.stringify(staffUser));
-      if (business) {
-        localStorage.setItem('goldstamp_merchant_business', JSON.stringify(business));
-      }
-
-      setSuccessToast(`Logged in as Staff (${sName})! Redirecting to Counter Kiosk...`);
-      setTimeout(() => {
-        router.push('/client/qr');
-      }, 700);
     }
   };
 
@@ -312,17 +296,6 @@ export default function ClientStaffPage() {
                       {/* Actions */}
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {/* 1-Click Test Login as Staff Button */}
-                          <button
-                            onClick={() => handleTestLogin(s)}
-                            disabled={!s.isActive}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition disabled:opacity-40"
-                            title="Switch session to this staff member and open counter kiosk"
-                          >
-                            <LogIn className="w-3.5 h-3.5" />
-                            <span>Test Login</span>
-                          </button>
-
                           {/* Toggle Active Status */}
                           <button
                             onClick={() => handleToggle(s.id)}
@@ -362,7 +335,7 @@ export default function ClientStaffPage() {
             <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
               • <strong>Role Permissions:</strong> Cashiers log in to scan dynamic customer QR codes and burn milestone reward vouchers.<br />
               • <strong>Protected Settings:</strong> Staff cannot edit venue billing, subscription plans, or delete campaigns.<br />
-              • <strong>Fast Testing:</strong> Click <strong>"Test Login"</strong> on any row to instantly simulate counter operations as that staff member!
+              • <strong>Front-Desk Access:</strong> Staff members sign in using their assigned email and password at the Merchant Portal.
             </p>
           </div>
         </div>

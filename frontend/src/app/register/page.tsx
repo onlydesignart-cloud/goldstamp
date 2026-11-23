@@ -224,30 +224,13 @@ export default function CustomerRegisterPage() {
 
       if (error) {
         console.warn('Supabase Google OAuth notice:', error);
-        // Fallback for seamless demo testing
-        const res = await loginWithGoogle({
-          email: formData.email || 'customer.alex@gmail.com',
-          name: formData.name || 'Google Customer',
-        });
-        if (res.success) {
-          router.push('/loyalty');
-        } else {
-          setError(res.error || 'Google Sign Up failed.');
-          setLoading(false);
-        }
+        setError(error.message || 'Google Sign Up could not be completed.');
+        setLoading(false);
       }
     } catch (err: any) {
       console.warn('Google OAuth exception:', err);
-      const res = await loginWithGoogle({
-        email: formData.email || 'customer.alex@gmail.com',
-        name: formData.name || 'Google Customer',
-      });
-      if (res.success) {
-        router.push('/loyalty');
-      } else {
-        setError(err?.message || 'Failed to connect to Google.');
-        setLoading(false);
-      }
+      setError(err?.message || 'Failed to connect to Google Auth.');
+      setLoading(false);
     }
   };
 

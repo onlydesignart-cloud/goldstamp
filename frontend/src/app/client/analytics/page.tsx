@@ -38,9 +38,19 @@ export default function ClientAnalyticsPage() {
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | 'all'>('7d');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const targetBizId = business?.id || 'biz_smashzone';
+  let targetBizId = business?.id;
+  if (!targetBizId && typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('goldstamp_merchant_business');
+      if (stored) targetBizId = JSON.parse(stored).id;
+    } catch {}
+  }
 
   const loadData = async () => {
+    if (!targetBizId) {
+      setLoading(false);
+      return;
+    }
     try {
       setIsRefreshing(true);
       const res = await api.getBusinessAnalytics(targetBizId);
