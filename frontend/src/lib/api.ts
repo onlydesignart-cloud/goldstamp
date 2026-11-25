@@ -2011,8 +2011,126 @@ export const api = {
   },
 
   staffCheckIn: async (businessId: string, data: any): Promise<ApiResponse<any>> => {
-    return asyncWrap(() => {
-      const customerUserId = data.customerUserId || 'usr_customer_alex';
+    return asyncWrap(async () => {
+      const customerUserId = data.customerUserId || `usr_manual_${Date.now()}`;
+      const customerName = data.customerName || 'Customer Member';
+      const customerPhone = data.customerPhone || null;
+
+      if (typeof window !== 'undefined') {
+        try {
+          const supabase = createClient();
+
+          // 1. Ensure user exists
+          await supabase.from('User').upsert({
+            id: customerUserId,
+            name: customerName,
+            phone: customerPhone,
+            email: data.customerEmail || `${customerUserId}@goldstamp.app`,
+            role: 'CUSTOMER',
+            status: 'ACTIVE',
+            updatedAt: new Date().toISOString(),
+          });
+
+          // 2. Fetch business active campaign
+          let campId: string | null = null;
+          let targetStamps = 5;
+          let rewardTitle = 'Milestone Reward';
+
+          const { data: camps } = await supabase
+            .from('Campaign')
+            .select('*, rules:CampaignRule(*), rewards:Reward(*)')
+            .eq('businessId', businessId)
+            .eq('status', 'ACTIVE')
+            .limit(1);
+
+          if (camps && camps.length > 0) {
+            campId = camps[0].id;
+            targetStamps = Number(camps[0].rules?.[0]?.conditionValue) || 5;
+            rewardTitle = camps[0].rules?.[0]?.rewardValue || camps[0].rewards?.[0]?.title || rewardTitle;
+          }
+
+          const visitId = `vis_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          const stampId = `st_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          const now = new Date().toISOString();
+
+          // 3. Insert Visit
+          await supabase.from('Visit').insert({
+            id: visitId,
+            userId: customerUserId,
+            businessId,
+            campaignId: campId,
+            verificationMethod: 'STAFF',
+            deviceInfo: 'Merchant Staff Terminal',
+            createdAt: now,
+          });
+
+          // 4. Insert StampTransaction
+          if (campId) {
+            await supabase.from('StampTransaction').insert({
+              id: stampId,
+              userId: customerUserId,
+              businessId,
+              campaignId: campId,
+              visitId,
+              verificationMethod: 'STAFF',
+              createdAt: now,
+            });
+          }
+
+          // 5. Update CustomerBusiness
+          const { data: existingCb } = await supabase
+            .from('CustomerBusiness')
+            .select('*')
+            .eq('userId', customerUserId)
+            .eq('businessId', businessId)
+            .maybeSingle();
+
+          const prevVisits = Number(existingCb?.totalVisits) || 0;
+          const prevStamps = Number(existingCb?.totalStamps) || 0;
+          const newVisits = prevVisits + 1;
+          const newStamps = prevStamps + 1;
+
+          await supabase.from('CustomerBusiness').upsert({
+            id: existingCb?.id || `cb_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            userId: customerUserId,
+            businessId,
+            status: 'ACTIVE',
+            totalVisits: newVisits,
+            totalStamps: newStamps,
+            lastVisitAt: now,
+            joinedAt: existingCb?.joinedAt || now,
+          });
+
+          const cycleStamps = newStamps % targetStamps === 0 && newStamps > 0 ? targetStamps : newStamps % targetStamps;
+          const isMilestone = newStamps >= targetStamps;
+
+          window.dispatchEvent(
+            new CustomEvent('goldstamp:counter_scan', {
+              detail: {
+                businessId,
+                customerName,
+                cycleStamps,
+                milestoneTarget: targetStamps,
+                rewardTitle,
+                isMilestone,
+                token: 'STAFF_VERIFIED',
+              },
+            })
+          );
+
+          return {
+            success: true,
+            visitId,
+            currentStamps: cycleStamps,
+            targetStamps,
+            rewardUnlocked: isMilestone,
+            rewardTitle,
+          };
+        } catch (dbErr) {
+          console.warn('Supabase staffCheckIn error:', dbErr);
+        }
+      }
+
       return mockStore.processCheckIn('mock_staff_pass', customerUserId);
     });
   },
@@ -2313,38 +2431,65 @@ export const api = {
   },
 
   getBusinessCustomers: async (businessId: string, query: string = ''): Promise<ApiResponse<any>> => {
+    if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient();
+        const { data: links, error } = await supabase
+          .from('CustomerBusiness')
+          .select('*, user:User(*)')
+          .eq('businessId', businessId)
+          .order('joinedAt', { ascending: false });
+
+        if (!error && links) {
+          const { data: camps } = await supabase
+            .from('Campaign')
+            .select('*, rules:CampaignRule(*), rewards:Reward(*)')
+            .eq('businessId', businessId)
+            .eq('status', 'ACTIVE')
+            .limit(1);
+          const activeCamp = camps?.[0];
+
+          const mapped = links.map((l: any) => ({
+            id: l.id,
+            user: l.user || { name: 'Customer Patron', email: 'guest@example.com' },
+            campaign: activeCamp
+              ? {
+                  id: activeCamp.id,
+                  name: activeCamp.name,
+                  type: activeCamp.type,
+                  rewardTitle: activeCamp.rules?.[0]?.rewardValue || activeCamp.rewards?.[0]?.title || 'Milestone Reward',
+                }
+              : null,
+            totalVisits: Number(l.totalVisits) || 0,
+            totalStamps: Number(l.totalStamps) || 0,
+            totalPoints: Number(l.totalPoints) || 0,
+            lastVisitAt: l.lastVisitAt,
+            joinedAt: l.joinedAt,
+          }));
+
+          return {
+            success: true,
+            data: mapped,
+          };
+        }
+      } catch (err) {
+        console.warn('Supabase getBusinessCustomers error:', err);
+      }
+    }
+
     return asyncWrap(() => {
       const db = mockStore.getRaw();
       const links = db.customerBusinesses.filter((c) => c.businessId === businessId);
-      return links.map((l) => {
-        const user = db.users.find((u) => u.id === l.userId) || { name: 'Customer', email: 'guest@example.com' };
-        
-        // Find enrolled campaign from link, recent visit, or business active campaign
-        const lastVisit = db.visits.find((v) => v.userId === l.userId && v.businessId === businessId);
-        const campaignId = (l as any).campaignId || lastVisit?.campaignId;
-        let campaign = db.campaigns.find((c) => c.id === campaignId);
-        if (!campaign) {
-          campaign = db.campaigns.find((c) => c.businessId === businessId);
-        }
-
-        return {
-          id: l.id,
-          user,
-          campaign: campaign
-            ? {
-                id: campaign.id,
-                name: campaign.name,
-                type: campaign.type,
-                rewardTitle: campaign.rewards?.[0]?.title || 'Loyalty Reward',
-              }
-            : null,
-          totalVisits: l.totalVisits,
-          totalStamps: l.totalStamps,
-          totalPoints: l.totalPoints,
-          lastVisitAt: l.lastVisitAt,
-          joinedAt: l.joinedAt,
-        };
-      });
+      return links.map((l) => ({
+        id: l.id,
+        user: db.users.find((u) => u.id === l.userId) || { name: 'Customer', email: 'guest@example.com' },
+        campaign: null,
+        totalVisits: l.totalVisits,
+        totalStamps: l.totalStamps,
+        totalPoints: l.totalPoints,
+        lastVisitAt: l.lastVisitAt,
+        joinedAt: l.joinedAt,
+      }));
     });
   },
 
@@ -2430,10 +2575,129 @@ export const api = {
 
   // --- Analytics & Visits ---
   getBusinessAnalytics: async (businessId: string): Promise<ApiResponse<any>> => {
+    if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient();
+
+        // 1. Total customers count
+        const { count: customerCount } = await supabase
+          .from('CustomerBusiness')
+          .select('*', { count: 'exact', head: true })
+          .eq('businessId', businessId);
+
+        // 2. Visits list
+        const { data: visits } = await supabase
+          .from('Visit')
+          .select('*, user:User(*), campaign:Campaign(*)')
+          .eq('businessId', businessId)
+          .order('createdAt', { ascending: false });
+
+        const visitList = visits || [];
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        monthStart.setHours(0, 0, 0, 0);
+
+        const todayVisits = visitList.filter((v: any) => new Date(v.createdAt) >= todayStart).length;
+        const monthlyVisits = visitList.filter((v: any) => new Date(v.createdAt) >= monthStart).length;
+        const totalVisits = visitList.length;
+
+        // 3. Total Stamps count
+        const { count: stampCount } = await supabase
+          .from('StampTransaction')
+          .select('*', { count: 'exact', head: true })
+          .eq('businessId', businessId);
+
+        // 4. Rewards Redeemed count
+        const { count: redemptionCount } = await supabase
+          .from('RewardRedemption')
+          .select('*', { count: 'exact', head: true })
+          .eq('businessId', businessId);
+
+        // 5. Generate daily chart data for last 7 days
+        const daysMap: Record<string, number> = {};
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const key = d.toLocaleDateString('en-US', { weekday: 'short' });
+          daysMap[key] = 0;
+        }
+
+        visitList.forEach((v: any) => {
+          const vDate = new Date(v.createdAt);
+          const key = vDate.toLocaleDateString('en-US', { weekday: 'short' });
+          if (daysMap[key] !== undefined) {
+            daysMap[key] += 1;
+          }
+        });
+
+        const chart = Object.entries(daysMap).map(([date, visits]) => ({ date, visits }));
+
+        return {
+          success: true,
+          data: {
+            summary: {
+              totalCustomers: customerCount || 0,
+              todayVisits,
+              monthlyVisits,
+              totalVisits,
+              totalStamps: stampCount || 0,
+              totalPoints: 0,
+              rewardsUnlocked: redemptionCount || 0,
+              activePromotions: 1,
+            },
+            chart,
+            recentVisits: visitList.slice(0, 10).map((v: any) => ({
+              id: v.id,
+              customerName: v.user?.name || 'Customer Patron',
+              phone: v.user?.phone,
+              campaignName: v.campaign?.name || 'Loyalty Program',
+              method: v.verificationMethod || 'QR',
+              time: new Date(v.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            })),
+          },
+        };
+      } catch (err) {
+        console.warn('Supabase getBusinessAnalytics error:', err);
+      }
+    }
+
     return asyncWrap(() => mockStore.getBusinessAnalytics(businessId));
   },
 
   getBusinessVisits: async (businessId: string): Promise<ApiResponse<any>> => {
+    if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient();
+        const { data: visits } = await supabase
+          .from('Visit')
+          .select('*, user:User(*), campaign:Campaign(*)')
+          .eq('businessId', businessId)
+          .order('createdAt', { ascending: false });
+
+        if (visits) {
+          return {
+            success: true,
+            data: visits.map((v: any) => ({
+              id: v.id,
+              userId: v.userId,
+              customerName: v.user?.name || 'Customer Patron',
+              customerPhone: v.user?.phone,
+              customerEmail: v.user?.email,
+              campaignName: v.campaign?.name || 'Loyalty Milestone',
+              verificationMethod: v.verificationMethod || 'QR',
+              deviceInfo: v.deviceInfo,
+              createdAt: v.createdAt,
+            })),
+          };
+        }
+      } catch (err) {
+        console.warn('Supabase getBusinessVisits error:', err);
+      }
+    }
+
     return asyncWrap(() => mockStore.getBusinessVisits(businessId));
   },
 

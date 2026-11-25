@@ -14,6 +14,7 @@ import { VouchersScreen } from './src/screens/VouchersScreen';
 import { ExploreScreen } from './src/screens/ExploreScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
+import { CustomerApi } from './src/services/api';
 import {
   WalletIcon,
   RewardsIcon,
@@ -35,6 +36,7 @@ export default function App() {
       <SafeAreaProvider>
         <AuthScreen
           onLoginSuccess={(loggedInUser) => {
+            CustomerApi.setCurrentCustomer(loggedInUser);
             setUser(loggedInUser);
             setCurrentTab('WALLET');
           }}
