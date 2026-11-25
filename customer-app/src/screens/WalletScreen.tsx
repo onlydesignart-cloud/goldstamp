@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Shadows } from '../theme/colors';
 import { LoyaltyCard } from '../types';
 import { CustomerApi } from '../services/api';
-import { CheckIcon, ScanIcon } from '../components/Icons';
+import { CheckIcon, ScanIcon, PiggyBankSketchIcon } from '../components/Icons';
 
 const { width } = Dimensions.get('window');
 
@@ -59,35 +59,53 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigateToScan, on
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Horizontal Venue Cards Selector */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.pillsContainer}
-        >
-          {cards.map((c, idx) => {
-            const isSelected = idx === selectedCardIndex;
-            return (
-              <TouchableOpacity
-                key={c.id}
-                onPress={() => setSelectedCardIndex(idx)}
-                style={[styles.pillBtn, isSelected && styles.pillBtnActive]}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.pillBtnText, isSelected && styles.pillBtnTextActive]}>
-                  {c.businessName}
-                </Text>
-                <Text style={[styles.pillBadge, isSelected && styles.pillBadgeActive]}>
-                  {c.currentStamps}/{c.targetStamps}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {/* Horizontal Campaign Cards Selector (shown when user has joined cards) */}
+        {cards.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.pillsContainer}
+          >
+            {cards.map((c, idx) => {
+              const isSelected = idx === selectedCardIndex;
+              return (
+                <TouchableOpacity
+                  key={c.id || idx}
+                  onPress={() => setSelectedCardIndex(idx)}
+                  style={[styles.pillBtn, isSelected && styles.pillBtnActive]}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ maxWidth: 160 }}>
+                    <Text style={[styles.pillBtnText, isSelected && styles.pillBtnTextActive]} numberOfLines={1}>
+                      {c.businessName}
+                    </Text>
+                    <Text style={[styles.pillCampName, isSelected && styles.pillCampNameActive]} numberOfLines={1}>
+                      {c.campaignName}
+                    </Text>
+                  </View>
+                  <Text style={[styles.pillBadge, isSelected && styles.pillBadgeActive]}>
+                    {c.currentStamps}/{c.targetStamps}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* ACTIVE STAMP CARD (HERO) */}
         {activeCard ? (
           <View style={[styles.cardContainer, Shadows.card]}>
+            {/* Optional Campaign Banner Header */}
+            {activeCard.bannerImage ? (
+              <View style={styles.cardBannerHeader}>
+                <Image
+                  source={{ uri: activeCard.bannerImage }}
+                  style={styles.cardBannerImg}
+                  resizeMode="cover"
+                />
+              </View>
+            ) : null}
+
             {/* Obsidian Header Strip */}
             <View style={styles.cardHeader}>
               <View style={styles.headerLeft}>
@@ -185,17 +203,19 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigateToScan, on
               onPress={onNavigateToScan}
               activeOpacity={0.85}
             >
-              <Text style={styles.scanActionBtnText}>Check-in</Text>
+              <Text style={styles.scanActionBtnText}>Scan Counter QR</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No Passes Yet</Text>
+          /* EMPTY WALLET STATE */
+          <View style={[styles.emptyContainer, Shadows.card]}>
+            <PiggyBankSketchIcon size={80} color="#94A3B8" strokeWidth={1.5} />
+            <Text style={styles.emptyTitle}>Your Wallet is Empty</Text>
             <Text style={styles.emptySubtitle}>
-              Join digital stamp programs at local arenas and cafés.
+              You haven't joined any loyalty campaigns yet. Explore participating venues and tap "Join Campaign" to add your stamp cards here!
             </Text>
             <TouchableOpacity style={styles.exploreBtn} onPress={onNavigateToExplore} activeOpacity={0.85}>
-              <Text style={styles.exploreBtnText}>Explore</Text>
+              <Text style={styles.exploreBtnText}>Explore Venues & Join Offers</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -204,14 +224,14 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigateToScan, on
         <View style={styles.statsBanner}>
           <View style={styles.statBox}>
             <Text style={styles.statValue}>{cards.length}</Text>
-            <Text style={styles.statLabel}>Passes</Text>
+            <Text style={styles.statLabel}>Active Passes</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
             <Text style={styles.statValue}>
               {cards.reduce((sum, c) => sum + c.totalVisits, 0)}
             </Text>
-            <Text style={styles.statLabel}>Visits</Text>
+            <Text style={styles.statLabel}>Total Visits</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
@@ -255,7 +275,7 @@ const styles = StyleSheet.create({
   pillBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     backgroundColor: '#FFFFFF',
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -268,13 +288,21 @@ const styles = StyleSheet.create({
     borderColor: '#000000',
   },
   pillBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#334155',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   pillBtnTextActive: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  pillCampName: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  pillCampNameActive: {
+    color: '#94A3B8',
   },
   pillBadge: {
     fontSize: 11,
@@ -292,12 +320,22 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     marginBottom: 16,
   },
+  cardBannerHeader: {
+    height: 120,
+    width: '100%',
+    backgroundColor: '#F1F5F9',
+  },
+  cardBannerImg: {
+    width: '100%',
+    height: '100%',
+  },
   cardHeader: {
-    backgroundColor: '#0F172A',
-    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   headerLeft: {
     flexDirection: 'row',
@@ -306,12 +344,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   logoBadge: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 8,
-    backgroundColor: '#1E293B',
-    borderWidth: 1,
-    borderColor: '#334155',
+    backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -322,59 +358,58 @@ const styles = StyleSheet.create({
   },
   logoBadgeText: {
     color: '#F59E0B',
-    fontWeight: '900',
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '800',
   },
   venueName: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: '#0F172A',
     letterSpacing: -0.3,
   },
   industryTag: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#94A3B8',
+    fontSize: 12,
+    color: '#64748B',
     marginTop: 2,
+    fontWeight: '500',
   },
   stampFractionBadge: {
-    backgroundColor: '#1E293B',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+    backgroundColor: '#0F172A',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
     borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#334155',
   },
   stampFractionText: {
     color: '#F59E0B',
     fontSize: 12,
     fontWeight: '800',
+    letterSpacing: 0.5,
   },
   campaignStrip: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingVertical: 12,
+    backgroundColor: '#F8FAFC',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
   campaignName: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
+    marginBottom: 4,
   },
   rewardRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 4,
   },
   rewardLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: '#D97706',
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
     borderRadius: 4,
   },
   rewardTitle: {
@@ -387,45 +422,45 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     padding: 16,
-    gap: 10,
-    justifyContent: 'flex-start',
+    gap: 12,
+    justifyContent: 'center',
   },
   slot: {
-    width: (width - 32 - 32 - 40) / 5,
-    height: (width - 32 - 32 - 40) / 5,
+    width: 52,
+    height: 52,
     borderRadius: 8,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
     alignItems: 'center',
     justifyContent: 'center',
   },
   slotStamped: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
+    backgroundColor: '#F59E0B',
+    borderColor: '#D97706',
   },
   slotNext: {
-    borderColor: '#000000',
-    borderWidth: 1.5,
+    borderColor: '#0F172A',
+    borderStyle: 'dashed',
     backgroundColor: '#FFFFFF',
   },
   slotFinal: {
     borderColor: '#D97706',
-    borderStyle: 'dashed',
+    backgroundColor: '#FFFBEB',
   },
   slotNum: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#94A3B8',
   },
   slotNumNext: {
-    color: '#000000',
-    fontWeight: '800',
+    color: '#0F172A',
   },
   slotPerkText: {
     fontSize: 9,
     fontWeight: '800',
     color: '#D97706',
+    textTransform: 'uppercase',
   },
   progressSection: {
     paddingHorizontal: 16,
@@ -444,7 +479,7 @@ const styles = StyleSheet.create({
   },
   progressPercent: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#0F172A',
   },
   progressBarTrack: {
@@ -452,87 +487,92 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
     borderRadius: 3,
     overflow: 'hidden',
+    marginBottom: 6,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#F59E0B',
+    backgroundColor: '#0F172A',
+    borderRadius: 3,
   },
   remainingHint: {
     fontSize: 11,
     color: '#64748B',
-    marginTop: 6,
-    fontWeight: '500',
+    textAlign: 'center',
   },
   scanActionBtn: {
-    backgroundColor: '#000000',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    paddingVertical: 13,
-    borderRadius: 8,
+    backgroundColor: '#0F172A',
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
   scanActionBtnText: {
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
   },
   emptyContainer: {
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
-    padding: 24,
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
     marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 6,
+    marginTop: 6,
   },
   emptySubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748B',
     textAlign: 'center',
-    marginBottom: 16,
+    lineHeight: 18,
+    maxWidth: 280,
   },
   exploreBtn: {
-    backgroundColor: '#000000',
+    backgroundColor: '#0F172A',
     paddingVertical: 10,
-    paddingHorizontal: 24,
+    paddingHorizontal: 22,
     borderRadius: 8,
+    marginTop: 4,
   },
   exploreBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
+    letterSpacing: 0.2,
   },
   statsBanner: {
     flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     paddingVertical: 14,
-    alignItems: 'center',
   },
   statBox: {
     flex: 1,
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
   statLabel: {
     fontSize: 11,
     color: '#64748B',
-    fontWeight: '600',
     marginTop: 2,
+    fontWeight: '500',
   },
   statDivider: {
     width: 1,

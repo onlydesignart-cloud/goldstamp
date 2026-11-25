@@ -26,9 +26,11 @@ export interface Campaign {
 export interface LoyaltyCard {
   id: string;
   businessId: string;
+  campaignId?: string;
   businessName: string;
   businessSlug: string;
   businessLogo?: string;
+  bannerImage?: string;
   industry: string;
   campaignName: string;
   rewardTitle: string;

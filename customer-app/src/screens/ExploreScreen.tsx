@@ -24,8 +24,8 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
   const [venues, setVenues] = useState<Business[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [joiningId, setJoiningId] = useState<string | null>(null);
-  const [joinedMap, setJoinedMap] = useState<Record<string, boolean>>({});
+  const [joiningCampId, setJoiningCampId] = useState<string | null>(null);
+  const [joinedCampaignMap, setJoinedCampaignMap] = useState<Record<string, boolean>>({});
   const [selectedVenue, setSelectedVenue] = useState<Business | null>(null);
 
   const loadVenues = async () => {
@@ -35,9 +35,9 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
     const userCards = await CustomerApi.getCards();
     const map: Record<string, boolean> = {};
     userCards.forEach((c) => {
-      map[c.businessId] = true;
+      if (c.campaignId) map[c.campaignId] = true;
     });
-    setJoinedMap(map);
+    setJoinedCampaignMap(map);
   };
 
   useEffect(() => {
@@ -46,11 +46,11 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
 
   const categories = ['All', ...Array.from(new Set(venues.map((v) => v.industry).filter(Boolean)))];
 
-  const handleJoin = async (venueId: string) => {
-    setJoiningId(venueId);
-    await CustomerApi.joinVenue(venueId);
-    setJoinedMap((prev) => ({ ...prev, [venueId]: true }));
-    setJoiningId(null);
+  const handleJoinCampaign = async (businessId: string, campaignId: string) => {
+    setJoiningCampId(campaignId);
+    await CustomerApi.joinCampaign(businessId, campaignId);
+    setJoinedCampaignMap((prev) => ({ ...prev, [campaignId]: true }));
+    setJoiningCampId(null);
     onJoinSuccess();
   };
 
@@ -116,9 +116,10 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
           </View>
         ) : (
           venues.map((venue) => {
-            const isJoined = joinedMap[venue.id];
             const campaigns = venue.campaigns || [];
             const primaryCampaign = campaigns[0];
+            const isPrimaryJoined = primaryCampaign ? !!joinedCampaignMap[primaryCampaign.id] : false;
+            const anyJoinedInVenue = campaigns.some((c) => !!joinedCampaignMap[c.id]);
 
             return (
               <TouchableOpacity
@@ -160,29 +161,37 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
                     </View>
                   </View>
 
-                  {/* Joined / Quick Join Badge */}
-                  {isJoined ? (
-                    <View style={styles.joinedPill}>
-                      <CheckIcon size={12} color="#059669" strokeWidth={2.5} />
-                      <Text style={styles.joinedPillText}>Joined</Text>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={styles.quickJoinBtn}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleJoin(venue.id);
-                      }}
-                      disabled={joiningId === venue.id}
-                    >
-                      <Text style={styles.quickJoinBtnText}>
-                        {joiningId === venue.id ? '...' : '+ Join'}
+                  {/* Single Campaign Quick Action (if only 1 campaign) */}
+                  {campaigns.length === 1 && primaryCampaign ? (
+                    isPrimaryJoined ? (
+                      <View style={styles.joinedPill}>
+                        <CheckIcon size={12} color="#059669" strokeWidth={2.5} />
+                        <Text style={styles.joinedPillText}>In Wallet</Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.quickJoinBtn}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleJoinCampaign(venue.id, primaryCampaign.id);
+                        }}
+                        disabled={joiningCampId === primaryCampaign.id}
+                      >
+                        <Text style={styles.quickJoinBtnText}>
+                          {joiningCampId === primaryCampaign.id ? '...' : '+ Join'}
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  ) : campaigns.length > 1 ? (
+                    <View style={styles.multiOffersPill}>
+                      <Text style={styles.multiOffersPillText}>
+                        {campaigns.length} Offers
                       </Text>
-                    </TouchableOpacity>
-                  )}
+                    </View>
+                  ) : null}
                 </View>
 
-                {/* Campaign Highlight Box */}
+                {/* Primary Campaign Highlight Box */}
                 {primaryCampaign ? (
                   <View style={styles.campaignBox}>
                     {primaryCampaign.bannerImage ? (
@@ -224,8 +233,8 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
                 {/* View Details Footer Link */}
                 <View style={styles.viewDetailsRow}>
                   <Text style={styles.viewDetailsText}>
-                    {campaigns.length > 0
-                      ? `View all ${campaigns.length} offer${campaigns.length > 1 ? 's' : ''} & details →`
+                    {campaigns.length > 1
+                      ? `View all ${campaigns.length} campaign offers & join →`
                       : 'View venue details →'}
                   </Text>
                 </View>
@@ -311,32 +320,16 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
                 {selectedVenue.address && (
                   <Text style={styles.detailAddressText}>{selectedVenue.address}</Text>
                 )}
-
-                {/* Join Venue CTA Button */}
-                <View style={styles.detailActionWrap}>
-                  {joinedMap[selectedVenue.id] ? (
-                    <View style={styles.detailJoinedPill}>
-                      <CheckIcon size={14} color="#059669" strokeWidth={2.5} />
-                      <Text style={styles.detailJoinedText}>Loyalty Member • Pass in Wallet</Text>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={styles.detailJoinBtn}
-                      onPress={() => handleJoin(selectedVenue.id)}
-                      disabled={joiningId === selectedVenue.id}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.detailJoinBtnText}>
-                        {joiningId === selectedVenue.id ? 'Joining Program...' : 'Join Venue & Collect Stamps'}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
               </View>
 
               {/* OFFERS SECTION */}
               <View style={styles.detailSectionHeader}>
-                <Text style={styles.detailSectionTitle}>Active Campaign Offers</Text>
+                <div>
+                  <Text style={styles.detailSectionTitle}>Select Campaign to Join</Text>
+                  <Text style={styles.detailSectionSubtitle}>
+                    Join the specific campaign you want to add to your Wallet
+                  </Text>
+                </div>
                 <View style={styles.detailOffersCountBadge}>
                   <Text style={styles.detailOffersCountText}>
                     {selectedVenue.campaigns?.length || 0} Available
@@ -344,54 +337,81 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
                 </View>
               </View>
 
-              {/* List of Multiple Campaigns or Empty State */}
+              {/* List of Multiple Campaigns with Individual Join Buttons */}
               {selectedVenue.campaigns && selectedVenue.campaigns.length > 0 ? (
                 <View style={styles.campaignsListWrap}>
-                  {selectedVenue.campaigns.map((camp, index) => (
-                    <View key={camp.id || index} style={[styles.detailCampaignCard, Shadows.card]}>
-                      {/* Campaign Promo Banner */}
-                      {camp.bannerImage ? (
-                        <View style={styles.detailCampBannerWrap}>
-                          <Image
-                            source={{ uri: camp.bannerImage }}
-                            style={styles.detailCampBannerImg}
-                            resizeMode="cover"
-                          />
-                        </View>
-                      ) : null}
+                  {selectedVenue.campaigns.map((camp, index) => {
+                    const isJoined = !!joinedCampaignMap[camp.id];
 
-                      <View style={styles.detailCampBody}>
-                        {/* Target badge & Type */}
-                        <View style={styles.campBadgeRow}>
-                          <View style={styles.campPassBadge}>
-                            <Text style={styles.campPassBadgeText}>
-                              {camp.targetStamps} STAMPS PASS
-                            </Text>
+                    return (
+                      <View key={camp.id || index} style={[styles.detailCampaignCard, Shadows.card]}>
+                        {/* Campaign Promo Banner */}
+                        {camp.bannerImage ? (
+                          <View style={styles.detailCampBannerWrap}>
+                            <Image
+                              source={{ uri: camp.bannerImage }}
+                              style={styles.detailCampBannerImg}
+                              resizeMode="cover"
+                            />
                           </View>
-                          <Text style={styles.campTypeLabel}>
-                            {camp.type === 'VISIT' ? 'Visit Program' : 'Stamp Card'}
-                          </Text>
-                        </View>
-
-                        {/* Title & Description */}
-                        <Text style={styles.campCardTitle}>{camp.name}</Text>
-                        {camp.description ? (
-                          <Text style={styles.campCardDesc}>{camp.description}</Text>
                         ) : null}
 
-                        {/* Reward Highlight Box */}
-                        <View style={styles.campRewardHighlight}>
-                          <View style={styles.campRewardIconBox}>
-                            <Text style={{ fontSize: 14 }}>🎁</Text>
+                        <View style={styles.detailCampBody}>
+                          {/* Target badge & Type */}
+                          <View style={styles.campBadgeRow}>
+                            <View style={styles.campPassBadge}>
+                              <Text style={styles.campPassBadgeText}>
+                                {camp.targetStamps} STAMPS PASS
+                              </Text>
+                            </View>
+                            <Text style={styles.campTypeLabel}>
+                              {camp.type === 'VISIT' ? 'Visit Program' : 'Stamp Card'}
+                            </Text>
                           </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.campRewardHighlightLabel}>Milestone Reward</Text>
-                            <Text style={styles.campRewardHighlightVal}>{camp.rewardTitle}</Text>
+
+                          {/* Title & Description */}
+                          <Text style={styles.campCardTitle}>{camp.name}</Text>
+                          {camp.description ? (
+                            <Text style={styles.campCardDesc}>{camp.description}</Text>
+                          ) : null}
+
+                          {/* Reward Highlight Box */}
+                          <View style={styles.campRewardHighlight}>
+                            <View style={styles.campRewardIconBox}>
+                              <Text style={{ fontSize: 14 }}>🎁</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.campRewardHighlightLabel}>Milestone Reward</Text>
+                              <Text style={styles.campRewardHighlightVal}>{camp.rewardTitle}</Text>
+                            </View>
+                          </View>
+
+                          {/* Individual Campaign Join CTA */}
+                          <View style={styles.campJoinActionWrap}>
+                            {isJoined ? (
+                              <View style={styles.campJoinedPill}>
+                                <CheckIcon size={14} color="#059669" strokeWidth={2.5} />
+                                <Text style={styles.campJoinedPillText}>Added to Wallet</Text>
+                              </View>
+                            ) : (
+                              <TouchableOpacity
+                                style={styles.campJoinBtn}
+                                onPress={() => handleJoinCampaign(selectedVenue.id, camp.id)}
+                                disabled={joiningCampId === camp.id}
+                                activeOpacity={0.85}
+                              >
+                                <Text style={styles.campJoinBtnText}>
+                                  {joiningCampId === camp.id
+                                    ? 'Adding to Wallet...'
+                                    : '+ Join Campaign & Add to Wallet'}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
                           </View>
                         </View>
                       </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               ) : (
                 /* EMPTY STATE: "No Campaign Offers Yet" with cute Piggy sketch icon */
@@ -575,6 +595,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
+  multiOffersPill: {
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  multiOffersPillText: {
+    color: '#1D4ED8',
+    fontSize: 10,
+    fontWeight: '700',
+  },
   campaignBox: {
     backgroundColor: '#F8FAFC',
     borderRadius: 10,
@@ -745,7 +778,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 10,
+    marginBottom: 6,
   },
   detailVenueLogo: {
     width: 52,
@@ -784,46 +817,14 @@ const styles = StyleSheet.create({
   detailAddressText: {
     fontSize: 12,
     color: '#64748B',
-    marginBottom: 12,
-  },
-  detailActionWrap: {
-    marginTop: 8,
-  },
-  detailJoinedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#ECFDF5',
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  detailJoinedText: {
-    color: '#065F46',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  detailJoinBtn: {
-    backgroundColor: '#0F172A',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  detailJoinBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    marginTop: 4,
   },
   detailSectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    marginTop: 8,
+    marginTop: 12,
     marginBottom: 12,
   },
   detailSectionTitle: {
@@ -831,6 +832,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#0F172A',
     letterSpacing: -0.2,
+  },
+  detailSectionSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
   },
   detailOffersCountBadge: {
     backgroundColor: '#E0F2FE',
@@ -910,6 +916,7 @@ const styles = StyleSheet.create({
     borderColor: '#F1F5F9',
     borderRadius: 8,
     padding: 10,
+    marginBottom: 12,
   },
   campRewardIconBox: {
     width: 32,
@@ -929,6 +936,38 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#0F172A',
+  },
+  campJoinActionWrap: {
+    paddingTop: 2,
+  },
+  campJoinedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  campJoinedPillText: {
+    color: '#065F46',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  campJoinBtn: {
+    backgroundColor: '#0F172A',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  campJoinBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 
   // Empty state in Detail Modal
