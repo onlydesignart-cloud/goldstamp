@@ -26,7 +26,7 @@ import {
 type Tab = 'WALLET' | 'VOUCHERS' | 'EXPLORE' | 'PROFILE';
 
 export default function App() {
-  const [user, setUser] = useState<{ name: string; phone: string; email?: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; phone: string; email?: string; whatsapp?: string } | null>(null);
   const [currentTab, setCurrentTab] = useState<Tab>('WALLET');
   const [isScanning, setIsScanning] = useState(false);
 
@@ -82,7 +82,11 @@ export default function App() {
             <ExploreScreen onJoinSuccess={() => setCurrentTab('WALLET')} />
           )}
           {currentTab === 'PROFILE' && (
-            <ProfileScreen onSignOut={() => setUser(null)} />
+            <ProfileScreen
+              user={user}
+              onProfileUpdate={(updated) => setUser(updated)}
+              onSignOut={() => setUser(null)}
+            />
           )}
         </View>
 

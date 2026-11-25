@@ -1267,14 +1267,16 @@ export const api = {
             .limit(100);
           if (dbVisits) visits = dbVisits;
 
-          // 2. Fetch Stamp Transactions
+          // 2. Fetch Stamp Transactions for this campaign or business
           const { data: dbStamps } = await supabase
             .from('StampTransaction')
             .select('*, user:User(*)')
-            .eq('campaignId', id)
+            .eq('businessId', camp.businessId)
             .order('createdAt', { ascending: false })
             .limit(200);
-          if (dbStamps) stampTxs = dbStamps;
+          if (dbStamps) {
+            stampTxs = dbStamps.filter((s: any) => !s.campaignId || s.campaignId === id);
+          }
 
           // 3. Fetch Redemptions
           const { data: dbRedemptions } = await supabase
@@ -1294,7 +1296,7 @@ export const api = {
           if (dbCbs) {
             dbCbs.forEach((cb: any) => {
               const u = cb.user || { name: 'Customer Member', email: 'patron@example.com' };
-              const userStamps = stampTxs.filter((s: any) => s.userId === cb.userId).length || cb.totalStamps || 0;
+              const userStamps = stampTxs.filter((s: any) => s.userId === cb.userId).length || Number(cb.totalStamps) || 0;
               const userVisits = visits.filter((v: any) => v.userId === cb.userId).length || cb.totalVisits || 0;
               const cycleStamps = (userStamps % targetStamps === 0 && userStamps > 0) ? targetStamps : (userStamps % targetStamps);
               const isRewardReady = userStamps >= targetStamps;
@@ -1844,6 +1846,7 @@ export const api = {
                 name: customerName,
                 email: customerEmail,
                 phone: customerPhone,
+                passwordHash: 'MOBILE_OTP_VERIFIED',
                 role: 'CUSTOMER',
                 status: 'ACTIVE',
                 updatedAt: new Date().toISOString(),
@@ -2048,6 +2051,7 @@ export const api = {
             name: customerName,
             phone: customerPhone,
             email: data.customerEmail || `${customerUserId}@goldstamp.app`,
+            passwordHash: 'MOBILE_OTP_VERIFIED',
             role: 'CUSTOMER',
             status: 'ACTIVE',
             updatedAt: new Date().toISOString(),

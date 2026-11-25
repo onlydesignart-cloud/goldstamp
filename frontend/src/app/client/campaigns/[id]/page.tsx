@@ -499,10 +499,10 @@ export default function CampaignDetailPage() {
                   <thead>
                     <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                       <th className="py-3 px-3">Customer Patron</th>
-                      <th className="py-3 px-3">Contact</th>
-                      <th className="py-3 px-3">Current Progress</th>
+                      <th className="py-3 px-3">Mobile Number</th>
+                      <th className="py-3 px-3">Verified &amp; Issued Stamps</th>
                       <th className="py-3 px-3 text-center">Total Stamps</th>
-                      <th className="py-3 px-3 text-center">Visits</th>
+                      <th className="py-3 px-3 text-center">Enrolled Date</th>
                       <th className="py-3 px-3 text-center">Status</th>
                       <th className="py-3 px-3 text-right">Last Visit</th>
                     </tr>
@@ -510,6 +510,7 @@ export default function CampaignDetailPage() {
                   <tbody className="divide-y divide-slate-100 text-xs">
                     {filteredCustomers.map((cust: any) => {
                       const percent = Math.min(100, Math.round((cust.cycleStamps / targetStamps) * 100));
+                      const displayBoxes = Math.min(targetStamps, 10);
                       return (
                         <tr key={cust.id} className="hover:bg-slate-50/70 transition">
                           <td className="py-3.5 px-3">
@@ -517,26 +518,51 @@ export default function CampaignDetailPage() {
                               <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center shrink-0">
                                 {cust.name ? cust.name.substring(0, 2).toUpperCase() : 'CU'}
                               </div>
-                              <div className="font-bold text-slate-900">{cust.name}</div>
+                              <div>
+                                <div className="font-bold text-slate-900">{cust.name}</div>
+                                {cust.email && (
+                                  <div className="text-[10px] text-slate-400 truncate max-w-[140px]">
+                                    {cust.email}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </td>
 
-                          <td className="py-3.5 px-3 text-slate-500 text-[11px]">
-                            {cust.email && <div className="truncate max-w-[150px]">{cust.email}</div>}
-                            {cust.phone && <div className="font-mono text-slate-400">{cust.phone}</div>}
+                          <td className="py-3.5 px-3 text-slate-600 text-xs font-mono">
+                            {cust.phone || '—'}
                           </td>
 
-                          <td className="py-3.5 px-3 min-w-[160px]">
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
-                                <span>{cust.cycleStamps} / {targetStamps} Stamps</span>
-                                <span className="text-emerald-700 font-mono">{percent}%</span>
+                          <td className="py-3.5 px-3 min-w-[200px]">
+                            <div className="space-y-1.5">
+                              {/* Small Visual Stamp Boxes */}
+                              <div className="flex flex-wrap items-center gap-1">
+                                {Array.from({ length: displayBoxes }).map((_, idx) => {
+                                  const slot = idx + 1;
+                                  const isStamped = slot <= cust.cycleStamps;
+                                  return (
+                                    <div
+                                      key={idx}
+                                      title={isStamped ? `Stamp #${slot} Verified` : `Slot #${slot}`}
+                                      className={`w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold border transition ${
+                                        isStamped
+                                          ? 'bg-emerald-500 text-white border-emerald-600 shadow-2xs'
+                                          : 'bg-slate-50 text-slate-400 border-slate-200'
+                                      }`}
+                                    >
+                                      {isStamped ? <Check className="w-3 h-3 stroke-[3]" /> : slot}
+                                    </div>
+                                  );
+                                })}
+                                {targetStamps > 10 && (
+                                  <span className="text-[10px] font-bold text-slate-400 ml-0.5">
+                                    +{targetStamps - 10}
+                                  </span>
+                                )}
                               </div>
-                              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-emerald-500 rounded-full transition-all duration-300"
-                                  style={{ width: `${percent}%` }}
-                                ></div>
+                              <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500">
+                                <span>{cust.cycleStamps} / {targetStamps} verified</span>
+                                <span className="text-emerald-700 font-mono">{percent}%</span>
                               </div>
                             </div>
                           </td>
@@ -545,8 +571,8 @@ export default function CampaignDetailPage() {
                             {cust.totalStamps}
                           </td>
 
-                          <td className="py-3.5 px-3 text-center font-mono text-slate-600">
-                            {cust.totalVisits}
+                          <td className="py-3.5 px-3 text-center text-slate-500 text-[11px] whitespace-nowrap">
+                            {cust.joinedAt ? new Date(cust.joinedAt).toLocaleDateString() : '—'}
                           </td>
 
                           <td className="py-3.5 px-3 text-center">

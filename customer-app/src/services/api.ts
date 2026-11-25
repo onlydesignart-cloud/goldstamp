@@ -10,6 +10,7 @@ let currentCustomer = {
   name: 'Arjun Mehta',
   phone: '8160587315',
   email: 'customer@goldstamp.app',
+  whatsapp: '8160587315',
 };
 
 // In-memory state for user wallet passes and vouchers
@@ -44,13 +45,81 @@ const saveJoinedCampaignIds = (ids: string[]) => {
 
 export const CustomerApi = {
   // Set active customer profile on login
-  setCurrentCustomer: (user: { name: string; phone: string; email?: string }) => {
+  setCurrentCustomer: (user: { name: string; phone: string; email?: string; whatsapp?: string }) => {
+    const cleanPhone = user.phone.replace(/[^0-9]/g, '');
     currentCustomer = {
-      id: `usr_${user.phone.replace(/[^0-9]/g, '')}`,
+      id: `usr_${cleanPhone}`,
       name: user.name,
-      phone: user.phone,
-      email: user.email || `${user.phone}@goldstamp.app`,
+      phone: cleanPhone,
+      email: user.email || `${cleanPhone}@goldstamp.app`,
+      whatsapp: user.whatsapp || cleanPhone,
     };
+  },
+
+  // Fetch existing profile from Supabase User table by mobile number
+  getProfileByPhone: async (phone: string): Promise<{ name: string; email: string; phone: string; whatsapp?: string } | null> => {
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/User?phone=eq.${encodeURIComponent(cleanPhone)}&select=id,name,email,phone&limit=1`,
+        {
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+          },
+        }
+      );
+      if (res.ok) {
+        const rows = await res.json();
+        if (Array.isArray(rows) && rows.length > 0 && rows[0].name && rows[0].email && !rows[0].email.endsWith('@goldstamp.app')) {
+          return {
+            name: rows[0].name,
+            email: rows[0].email,
+            phone: rows[0].phone || cleanPhone,
+            whatsapp: rows[0].phone || cleanPhone,
+          };
+        }
+      }
+    } catch {}
+    return null;
+  },
+
+  // Save/Update customer profile to Supabase User table
+  updateProfile: async (profile: { name: string; email: string; phone: string; whatsapp?: string }): Promise<boolean> => {
+    const cleanPhone = profile.phone.replace(/[^0-9]/g, '');
+    const custId = `usr_${cleanPhone}`;
+    currentCustomer = {
+      id: custId,
+      name: profile.name.trim(),
+      phone: cleanPhone,
+      email: profile.email.trim().toLowerCase(),
+      whatsapp: (profile.whatsapp || cleanPhone).replace(/[^0-9+]/g, ''),
+    };
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/User`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: custId,
+          name: currentCustomer.name,
+          phone: currentCustomer.phone,
+          email: currentCustomer.email,
+          passwordHash: 'MOBILE_OTP_VERIFIED',
+          role: 'CUSTOMER',
+          status: 'ACTIVE',
+          updatedAt: new Date().toISOString(),
+        }),
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn('Supabase updateProfile error:', err);
+      return false;
+    }
   },
 
   getCurrentCustomer: () => currentCustomer,
@@ -268,6 +337,7 @@ export const CustomerApi = {
           name: currentCustomer.name,
           phone: currentCustomer.phone,
           email: currentCustomer.email,
+          passwordHash: 'MOBILE_OTP_VERIFIED',
           role: 'CUSTOMER',
           status: 'ACTIVE',
           updatedAt: new Date().toISOString(),
@@ -552,6 +622,7 @@ export const CustomerApi = {
           name: currentCustomer.name,
           phone: currentCustomer.phone,
           email: currentCustomer.email,
+          passwordHash: 'MOBILE_OTP_VERIFIED',
           role: 'CUSTOMER',
           status: 'ACTIVE',
           updatedAt: new Date().toISOString(),

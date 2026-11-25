@@ -13,18 +13,22 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Shadows } from '../theme/colors';
+import { CustomerApi } from '../services/api';
+import { validateProfileForm } from '../utils/validation';
 
 interface AuthScreenProps {
-  onLoginSuccess: (user: { name: string; phone: string; email?: string }) => void;
+  onLoginSuccess: (user: { name: string; phone: string; email?: string; whatsapp?: string }) => void;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const [mode, setMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
-  const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE');
+  const [step, setStep] = useState<'PHONE' | 'OTP' | 'PROFILE_SETUP'>('PHONE');
 
   // Fields
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,11 +46,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
     setError(null);
     const cleanPhone = phone.replace(/[^0-9]/g, '');
 
-    if (mode === 'REGISTER' && (!name.trim() || name.trim().length < 2)) {
-      setError('Please enter your full name');
-      return;
-    }
-
     if (cleanPhone.length < 10) {
       setError('Please enter a valid 10-digit mobile number');
       return;
@@ -57,10 +56,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       setLoading(false);
       setStep('OTP');
       setResendTimer(45);
-    }, 600);
+    }, 500);
   };
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     setError(null);
     if (otp.trim().length !== 4) {
       setError('Please enter the 4-digit code');
@@ -68,14 +67,60 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
     }
 
     setLoading(true);
-    setTimeout(() => {
+    try {
+      // Check if existing profile is already completed in DB
+      const existing = await CustomerApi.getProfileByPhone(phone);
+      if (existing && mode === 'LOGIN') {
+        setLoading(false);
+        onLoginSuccess(existing);
+        return;
+      }
+
+      // Otherwise go to Profile Completion step
+      setWhatsapp(phone.replace(/[^0-9]/g, ''));
+      setLoading(false);
+      setStep('PROFILE_SETUP');
+    } catch {
+      setWhatsapp(phone.replace(/[^0-9]/g, ''));
+      setLoading(false);
+      setStep('PROFILE_SETUP');
+    }
+  };
+
+  const handleCompleteProfile = async () => {
+    setError(null);
+    const validation = validateProfileForm({
+      fullName: name,
+      email,
+      whatsapp: whatsapp || phone,
+    });
+
+    if (!validation.isValid) {
+      setError(validation.error || 'Please check your profile details.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const cleanPhone = phone.replace(/[^0-9]/g, '');
+      await CustomerApi.updateProfile({
+        name: validation.clean.name,
+        email: validation.clean.email,
+        phone: cleanPhone,
+        whatsapp: validation.clean.whatsapp || cleanPhone,
+      });
+
       setLoading(false);
       onLoginSuccess({
-        name: name.trim() || 'Customer',
-        phone: phone.trim(),
-        email: `${phone.trim()}@goldstamp.app`,
+        name: validation.clean.name,
+        email: validation.clean.email,
+        phone: cleanPhone,
+        whatsapp: validation.clean.whatsapp || cleanPhone,
       });
-    }, 500);
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || 'Failed to save profile. Please try again.');
+    }
   };
 
   const handleGoogleSignIn = () => {
@@ -86,6 +131,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
         name: 'Arjun Mehta',
         phone: '9876543210',
         email: 'arjun.mehta@gmail.com',
+        whatsapp: '9876543210',
       });
     }, 600);
   };
@@ -114,36 +160,38 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
 
           {/* Card Container */}
           <View style={[styles.authCard, Shadows.card]}>
-            {/* 2-Segment Switcher (Sign In <-> Register) */}
-            <View style={styles.tabSwitcher}>
-              <TouchableOpacity
-                style={[styles.tabBtn, mode === 'LOGIN' && styles.tabBtnActive]}
-                onPress={() => {
-                  setMode('LOGIN');
-                  setStep('PHONE');
-                  setError(null);
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.tabBtnText, mode === 'LOGIN' && styles.tabBtnTextActive]}>
-                  Sign In
-                </Text>
-              </TouchableOpacity>
+            {/* 2-Segment Switcher (only shown before profile setup) */}
+            {step !== 'PROFILE_SETUP' && (
+              <View style={styles.tabSwitcher}>
+                <TouchableOpacity
+                  style={[styles.tabBtn, mode === 'LOGIN' && styles.tabBtnActive]}
+                  onPress={() => {
+                    setMode('LOGIN');
+                    setStep('PHONE');
+                    setError(null);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.tabBtnText, mode === 'LOGIN' && styles.tabBtnTextActive]}>
+                    Sign In
+                  </Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.tabBtn, mode === 'REGISTER' && styles.tabBtnActive]}
-                onPress={() => {
-                  setMode('REGISTER');
-                  setStep('PHONE');
-                  setError(null);
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.tabBtnText, mode === 'REGISTER' && styles.tabBtnTextActive]}>
-                  Register
-                </Text>
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity
+                  style={[styles.tabBtn, mode === 'REGISTER' && styles.tabBtnActive]}
+                  onPress={() => {
+                    setMode('REGISTER');
+                    setStep('PHONE');
+                    setError(null);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.tabBtnText, mode === 'REGISTER' && styles.tabBtnTextActive]}>
+                    Register
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Error Banner */}
             {error && (
@@ -152,24 +200,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
               </View>
             )}
 
-            {/* Step 1: Phone / Name Input */}
+            {/* Step 1: Phone Number Input */}
             {step === 'PHONE' ? (
               <View style={styles.formSection}>
-                {mode === 'REGISTER' && (
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Full Name</Text>
-                    <TextInput
-                      placeholder="e.g. Arjun Mehta"
-                      placeholderTextColor="#94A3B8"
-                      value={name}
-                      onChangeText={setName}
-                      style={styles.textInput}
-                    />
-                  </View>
-                )}
-
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Mobile Number</Text>
+                  <Text style={styles.inputLabel}>
+                    Mobile Number <Text style={styles.requiredStar}>*</Text>
+                  </Text>
                   <View style={styles.phoneInputRow}>
                     <View style={styles.countryCodeBox}>
                       <Text style={styles.countryCodeText}>+91</Text>
@@ -186,7 +223,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   </View>
                 </View>
 
-                {/* Primary CTA Button - One Word */}
                 <TouchableOpacity
                   style={styles.primaryBtn}
                   onPress={handleSendOtp}
@@ -194,7 +230,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   activeOpacity={0.85}
                 >
                   <Text style={styles.primaryBtnText}>
-                    {loading ? 'Sending...' : mode === 'LOGIN' ? 'Continue' : 'Join'}
+                    {loading ? 'Sending...' : mode === 'LOGIN' ? 'Continue' : 'Register with OTP'}
                   </Text>
                 </TouchableOpacity>
 
@@ -205,7 +241,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   <View style={styles.dividerLine} />
                 </View>
 
-                {/* 1-Tap Google Sign-In - One Word */}
+                {/* 1-Tap Google Sign-In */}
                 <TouchableOpacity
                   style={styles.googleBtn}
                   onPress={handleGoogleSignIn}
@@ -215,7 +251,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   <Text style={styles.googleBtnText}>Google</Text>
                 </TouchableOpacity>
               </View>
-            ) : (
+            ) : step === 'OTP' ? (
               /* Step 2: OTP Verification */
               <View style={styles.otpSection}>
                 <View style={styles.otpHeader}>
@@ -236,7 +272,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   autoFocus
                 />
 
-                {/* Single Word Submit */}
                 <TouchableOpacity
                   style={styles.primaryBtn}
                   onPress={handleVerifyOtp}
@@ -269,6 +304,79 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                     <Text style={styles.changePhoneText}>Back</Text>
                   </TouchableOpacity>
                 </View>
+              </View>
+            ) : (
+              /* Step 3: Mandatory Profile Completion */
+              <View style={styles.formSection}>
+                <View style={styles.profileSetupHeader}>
+                  <Text style={styles.profileSetupTitle}>Complete Your Profile</Text>
+                  <Text style={styles.profileSetupSub}>
+                    Please provide your details to activate your digital stamp wallet.
+                  </Text>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>
+                    Full Name <Text style={styles.requiredStar}>*</Text>
+                  </Text>
+                  <TextInput
+                    placeholder="e.g. Rohan Sharma"
+                    placeholderTextColor="#94A3B8"
+                    value={name}
+                    onChangeText={setName}
+                    style={styles.textInput}
+                    autoCapitalize="words"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>
+                    Email Address <Text style={styles.requiredStar}>*</Text>
+                  </Text>
+                  <TextInput
+                    placeholder="rohan@example.com"
+                    placeholderTextColor="#94A3B8"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    style={styles.textInput}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>WhatsApp Number</Text>
+                  <View style={styles.phoneInputRow}>
+                    <View style={styles.countryCodeBox}>
+                      <Text style={styles.countryCodeText}>+91</Text>
+                    </View>
+                    <TextInput
+                      placeholder="WhatsApp number"
+                      placeholderTextColor="#94A3B8"
+                      value={whatsapp}
+                      onChangeText={setWhatsapp}
+                      keyboardType="phone-pad"
+                      maxLength={10}
+                      style={[styles.textInput, { flex: 1 }]}
+                    />
+                  </View>
+                  <View style={styles.whatsappNoteBox}>
+                    <Text style={styles.whatsappNoteText}>
+                      📱 Get live stamp &amp; reward updates on WhatsApp
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.primaryBtn}
+                  onPress={handleCompleteProfile}
+                  disabled={loading}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.primaryBtnText}>
+                    {loading ? 'Saving Profile...' : 'Complete & Open Wallet'}
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -346,7 +454,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FCA5A5',
     padding: 10,
-    borderRadius: 6,
+    borderRadius: 8,
     marginBottom: 14,
   },
   errorText: {
@@ -358,6 +466,20 @@ const styles = StyleSheet.create({
   formSection: {
     gap: 14,
   },
+  profileSetupHeader: {
+    marginBottom: 4,
+  },
+  profileSetupTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  profileSetupSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+    lineHeight: 16,
+  },
   inputGroup: {
     gap: 6,
   },
@@ -365,6 +487,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#0F172A',
+  },
+  requiredStar: {
+    color: '#DC2626',
+    fontWeight: '800',
   },
   textInput: {
     backgroundColor: '#F8FAFC',
@@ -394,6 +520,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0F172A',
   },
+  whatsappNoteBox: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 2,
+  },
+  whatsappNoteText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#065F46',
+  },
   primaryBtn: {
     backgroundColor: '#000000',
     paddingVertical: 13,
@@ -401,6 +541,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
+    width: '100%',
   },
   primaryBtnText: {
     color: '#FFFFFF',
