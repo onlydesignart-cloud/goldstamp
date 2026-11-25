@@ -119,7 +119,6 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
             const campaigns = venue.campaigns || [];
             const primaryCampaign = campaigns[0];
             const isPrimaryJoined = primaryCampaign ? !!joinedCampaignMap[primaryCampaign.id] : false;
-            const anyJoinedInVenue = campaigns.some((c) => !!joinedCampaignMap[c.id]);
 
             return (
               <TouchableOpacity
@@ -146,7 +145,7 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
                     )}
                   </View>
 
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, paddingRight: 6 }}>
                     <Text style={styles.venueName} numberOfLines={1}>
                       {venue.name}
                     </Text>
@@ -254,14 +253,14 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
         <SafeAreaView style={styles.detailModalSafe}>
           <StatusBar barStyle="dark-content" />
 
-          {/* Modal Header */}
+          {/* Modal Header Bar with clean back button */}
           <View style={styles.modalHeaderBar}>
             <TouchableOpacity
               onPress={() => setSelectedVenue(null)}
               style={styles.modalCloseBtn}
               activeOpacity={0.7}
             >
-              <CloseIcon size={18} color="#0F172A" strokeWidth={2} />
+              <CloseIcon size={18} color="#0F172A" strokeWidth={2.2} />
               <Text style={styles.modalCloseText}>Back</Text>
             </TouchableOpacity>
 
@@ -277,7 +276,7 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
               contentContainerStyle={styles.detailScrollContent}
               showsVerticalScrollIndicator={false}
             >
-              {/* Venue Hero Cover */}
+              {/* Venue Hero Cover (if available) */}
               {selectedVenue.coverImage ? (
                 <View style={styles.detailCoverWrap}>
                   <Image
@@ -289,8 +288,14 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
                 </View>
               ) : null}
 
-              {/* Venue Info Header Card */}
-              <View style={[styles.detailVenueCard, Shadows.card]}>
+              {/* Venue Info Header Card (proper margin top whether cover image is present or not) */}
+              <View
+                style={[
+                  styles.detailVenueCard,
+                  !selectedVenue.coverImage && { marginTop: 14 },
+                  Shadows.card,
+                ]}
+              >
                 <View style={styles.detailLogoRow}>
                   <View style={styles.detailVenueLogo}>
                     {selectedVenue.logo ? (
@@ -306,8 +311,10 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
                     )}
                   </View>
 
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.detailVenueName}>{selectedVenue.name}</Text>
+                  <View style={{ flex: 1, paddingRight: 6 }}>
+                    <Text style={styles.detailVenueName} numberOfLines={1}>
+                      {selectedVenue.name}
+                    </Text>
                     <View style={styles.venueMetaRow}>
                       <Text style={styles.detailIndustryBadge}>{selectedVenue.industry}</Text>
                       {selectedVenue.city && (
@@ -317,17 +324,17 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
                   </View>
                 </View>
 
-                {selectedVenue.address && (
+                {selectedVenue.address ? (
                   <Text style={styles.detailAddressText}>{selectedVenue.address}</Text>
-                )}
+                ) : null}
               </View>
 
-              {/* OFFERS SECTION */}
+              {/* OFFERS SECTION HEADER (proper padding and flex to avoid right-edge cutoff) */}
               <View style={styles.detailSectionHeader}>
-                <View>
+                <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={styles.detailSectionTitle}>Select Campaign to Join</Text>
-                  <Text style={styles.detailSectionSubtitle}>
-                    Join the specific campaign you want to add to your Wallet
+                  <Text style={styles.detailSectionSubtitle} numberOfLines={1}>
+                    Join specific campaign to add to your Wallet
                   </Text>
                 </View>
                 <View style={styles.detailOffersCountBadge}>
@@ -438,9 +445,9 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
@@ -570,8 +577,8 @@ const styles = StyleSheet.create({
   },
   quickJoinBtn: {
     backgroundColor: '#0F172A',
-    paddingVertical: 5,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
     borderRadius: 6,
   },
   quickJoinBtnText: {
@@ -597,15 +604,15 @@ const styles = StyleSheet.create({
   },
   multiOffersPill: {
     backgroundColor: '#EFF6FF',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#BFDBFE',
   },
   multiOffersPillText: {
     color: '#1D4ED8',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
   },
   campaignBox: {
@@ -767,9 +774,9 @@ const styles = StyleSheet.create({
   },
   detailVenueCard: {
     backgroundColor: '#FFFFFF',
-    margin: 16,
+    marginHorizontal: 16,
     marginTop: -20,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     padding: 16,
@@ -778,12 +785,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   detailVenueLogo: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 10,
     backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
@@ -791,11 +798,11 @@ const styles = StyleSheet.create({
   },
   detailLogoText: {
     color: '#F59E0B',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
   },
   detailVenueName: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
     color: '#0F172A',
     letterSpacing: -0.3,
@@ -817,15 +824,15 @@ const styles = StyleSheet.create({
   detailAddressText: {
     fontSize: 12,
     color: '#64748B',
-    marginTop: 4,
+    marginTop: 6,
   },
   detailSectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginTop: 12,
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    marginTop: 18,
+    marginBottom: 10,
   },
   detailSectionTitle: {
     fontSize: 15,
@@ -836,13 +843,15 @@ const styles = StyleSheet.create({
   detailSectionSubtitle: {
     fontSize: 11,
     color: '#64748B',
-    marginTop: 1,
+    marginTop: 2,
   },
   detailOffersCountBadge: {
     backgroundColor: '#E0F2FE',
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 2.5,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
   },
   detailOffersCountText: {
     fontSize: 11,
@@ -861,7 +870,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   detailCampBannerWrap: {
-    height: 130,
+    height: 135,
     width: '100%',
     backgroundColor: '#F1F5F9',
   },
