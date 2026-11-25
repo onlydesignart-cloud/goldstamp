@@ -39,6 +39,7 @@ export class CampaignsService {
           businessId: data.businessId,
           name: data.name,
           description: data.description,
+          bannerImage: (data as any).bannerImage || (data as any).image || null,
           type: data.type as CampaignType,
           status: CampaignStatus.ACTIVE,
           startDate: data.startDate ? new Date(data.startDate) : new Date(),

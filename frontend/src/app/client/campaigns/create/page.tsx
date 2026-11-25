@@ -17,6 +17,7 @@ import {
   Check,
   Zap,
 } from 'lucide-react';
+import { ImageUploader } from '../../../../components/ImageUploader';
 
 export default function CreateCampaignSimplePage() {
   const router = useRouter();
@@ -30,6 +31,7 @@ export default function CreateCampaignSimplePage() {
   const [rewardTitle, setRewardTitle] = useState('1 Hour Free Court Session');
   const [campaignName, setCampaignName] = useState('Loyalty Milestone Club');
   const [description, setDescription] = useState('Collect 1 stamp per visit. Complete the card to unlock your reward!');
+  const [bannerImage, setBannerImage] = useState('');
 
   const quickStamps = [5, 8, 10, 12];
 
@@ -71,6 +73,7 @@ export default function CreateCampaignSimplePage() {
       const res = await api.createCampaign(targetBizId, {
         name: campaignName || `${targetStamps} Stamps Loyalty Program`,
         description,
+        bannerImage: bannerImage || undefined,
         type: 'STAMP',
         conditionType: 'STAMP_COUNT',
         conditionValue: Number(targetStamps),
@@ -212,6 +215,17 @@ export default function CreateCampaignSimplePage() {
                   className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 focus:bg-white rounded-xl px-3.5 py-2 text-xs text-slate-900 font-normal transition"
                 />
               </div>
+
+              <div>
+                <ImageUploader
+                  label="Campaign Promo Banner (Optional)"
+                  value={bannerImage}
+                  onChange={setBannerImage}
+                  folder="campaigns"
+                  aspectRatio="video"
+                  hint="Banner displayed on customer pass cards and discovery."
+                />
+              </div>
             </div>
 
             {/* Submit */}
@@ -234,7 +248,13 @@ export default function CreateCampaignSimplePage() {
             <span>Live Customer Preview</span>
           </div>
 
-          <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white rounded-3xl p-6 shadow-xl border border-slate-800 space-y-5">
+          <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white rounded-3xl p-6 shadow-xl border border-slate-800 space-y-5 overflow-hidden">
+            {bannerImage && (
+              <div className="-mx-6 -mt-6 mb-4 h-36 overflow-hidden relative">
+                <img src={bannerImage} alt="Campaign Banner" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-sm">

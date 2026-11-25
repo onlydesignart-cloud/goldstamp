@@ -20,7 +20,7 @@ export default function ClientRedemptionsPage() {
       try {
         const storedBiz = localStorage.getItem('goldstamp_merchant_business');
         if (storedBiz) targetBizId = JSON.parse(storedBiz).id;
-      } catch {}
+      } catch { }
     }
     return targetBizId || '';
   };
@@ -226,11 +226,10 @@ export default function ClientRedemptionsPage() {
                     <td className="px-6 py-3.5 text-slate-600">{r.customer?.name || r.user?.name || 'Customer'}</td>
                     <td className="px-6 py-3.5">
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                          r.status === 'REDEEMED'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${r.status === 'REDEEMED'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800'
+                          }`}
                       >
                         {r.status}
                       </span>

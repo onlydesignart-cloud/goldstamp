@@ -6,6 +6,7 @@ import { config } from './config';
 import apiV1Router from './routes';
 import { errorHandler } from './middlewares/error.middleware';
 import { taskQueue } from './lib/queue';
+import prisma from './lib/prisma';
 
 const app = express();
 
@@ -49,6 +50,7 @@ if (config.nodeEnv === 'development') {
 
 // API Routes
 app.use('/api/v1', apiV1Router);
+app.use('/api/upload', apiV1Router);
 
 // Root route
 app.get('/', (_req, res) => {
@@ -78,6 +80,16 @@ app.use(errorHandler);
 const server = app.listen(config.port, () => {
   console.log(`🚀 [Gold Stamp API] Server running in ${config.nodeEnv} mode at http://localhost:${config.port}`);
   taskQueue.startPeriodicWorkers();
+
+  // Keep-Alive Ping every 24 hours to prevent Supabase inactivity pausing
+  setInterval(async () => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      console.log('⏰ [Keep-Alive] Pinged Supabase database to maintain active status.');
+    } catch (e: any) {
+      console.error('⚠️ [Keep-Alive Ping Error]:', e.message);
+    }
+  }, 24 * 60 * 60 * 1000);
 });
 
 // Graceful Shutdown

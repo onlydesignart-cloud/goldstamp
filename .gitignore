@@ -30,6 +30,10 @@ yarn-error.log*
 backend/prisma/*.db
 backend/prisma/*.db-journal
 
+# Backups & Temp dumps
+backend/db-backup*.json
+video.mp4
+
 # IDE & OS
 .vscode/
 .idea/

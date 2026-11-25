@@ -67,7 +67,7 @@ export const StampCard: React.FC<StampCardProps> = ({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <span className="text-xs font-black tracking-wider text-emerald-400">
+                <span className="text-xs font-black tracking-wider text-amber-400">
                   {businessName.substring(0, 2).toUpperCase()}
                 </span>
               )}
@@ -97,7 +97,7 @@ export const StampCard: React.FC<StampCardProps> = ({
           </div>
 
           <div className="shrink-0">
-            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-900 text-emerald-400 border border-slate-800 tabular-nums">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-900 text-amber-400 border border-slate-800 tabular-nums">
               {safeCurrent}/{safeTarget} Stamps
             </span>
           </div>
@@ -106,7 +106,7 @@ export const StampCard: React.FC<StampCardProps> = ({
         {/* Campaign Reward Banner */}
         <div className="mt-3.5 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs gap-2">
           <div className="text-slate-300 flex items-center gap-1.5 min-w-0 flex-1 truncate">
-            <Gift className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <Gift className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <span className="text-slate-400 font-medium">Reward:</span>
             <span className="font-bold text-slate-100 truncate">{rewardTitle}</span>
           </div>
@@ -116,7 +116,7 @@ export const StampCard: React.FC<StampCardProps> = ({
                 {safeTarget} stamps target
               </span>
             ) : isCompleted ? (
-              <span className="inline-flex items-center gap-1 text-emerald-400 font-bold text-xs">
+              <span className="inline-flex items-center gap-1 text-amber-400 font-bold text-xs">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 Unlocked
               </span>
@@ -167,25 +167,25 @@ export const StampCard: React.FC<StampCardProps> = ({
                 key={index}
                 className={`relative aspect-square rounded-xl flex flex-col items-center justify-center p-1 text-center transition-all ${
                   isStamped
-                    ? 'bg-slate-950 text-white font-bold shadow-sm ring-1 ring-emerald-500/30'
+                    ? 'bg-slate-950 text-white font-bold shadow-sm ring-1 ring-amber-400/50'
                     : isNext
-                    ? 'bg-emerald-50 border-2 border-dashed border-emerald-500 text-emerald-800 animate-pulse'
+                    ? 'bg-amber-50 border-2 border-dashed border-amber-500 text-amber-900 animate-pulse'
                     : isMilestone
-                    ? 'bg-amber-50/80 border border-amber-300 text-amber-900'
+                    ? 'bg-amber-100/80 border border-amber-300 text-amber-950 shadow-inner'
                     : 'bg-slate-50 border border-slate-200/80 text-slate-400'
                 }`}
               >
                 {isStamped ? (
                   <>
-                    <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
-                    <span className="text-[9px] mt-0.5 font-bold text-slate-300 tracking-tight">
+                    <Check className="w-4 h-4 text-amber-400 stroke-[3]" />
+                    <span className="text-[9px] mt-0.5 font-bold text-amber-300/80 tracking-tight">
                       #{slotNumber}
                     </span>
                   </>
                 ) : isMilestone ? (
                   <>
-                    <Gift className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isCompleted ? 'text-emerald-600' : 'text-amber-600'}`} />
-                    <span className="text-[9px] mt-0.5 font-bold text-amber-800 truncate max-w-full px-0.5">
+                    <Gift className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isCompleted ? 'text-amber-500' : 'text-amber-600'}`} />
+                    <span className="text-[9px] mt-0.5 font-bold text-amber-900 truncate max-w-full px-0.5">
                       Perk
                     </span>
                   </>
@@ -208,7 +208,7 @@ export const StampCard: React.FC<StampCardProps> = ({
             </div>
             <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
               <div
-                className="h-full bg-emerald-600 rounded-full transition-all duration-300"
+                className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-300"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -222,7 +222,7 @@ export const StampCard: React.FC<StampCardProps> = ({
             ) : isCompleted ? (
               <button
                 onClick={onRedeem}
-                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95"
+                className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
               >
                 <Gift className="w-3.5 h-3.5" />
                 Redeem Voucher
@@ -230,9 +230,9 @@ export const StampCard: React.FC<StampCardProps> = ({
             ) : (
               <Link
                 href="/checkin"
-                className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95"
+                className="w-full sm:w-auto bg-slate-950 hover:bg-slate-800 text-amber-400 font-bold text-xs px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95"
               >
-                <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                <QrCode className="w-3.5 h-3.5 text-amber-400" />
                 Scan Check-In
               </Link>
             )}

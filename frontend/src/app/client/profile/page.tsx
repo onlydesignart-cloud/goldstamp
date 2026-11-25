@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../lib/auth-context';
 import { api } from '../../../lib/api';
 import { Building2, Save, CheckCircle2, MapPin, Globe, Phone, Mail } from 'lucide-react';
+import { ImageUploader } from '../../../components/ImageUploader';
 
 export default function ClientProfilePage() {
   const { business, refreshProfile } = useAuth();
@@ -161,25 +162,23 @@ export default function ClientProfilePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="font-semibold text-slate-700 block mb-1">Logo Image URL</label>
-              <input
-                type="url"
-                value={logo}
-                onChange={(e) => setLogo(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              />
-            </div>
-            <div>
-              <label className="font-semibold text-slate-700 block mb-1">Cover Image URL</label>
-              <input
-                type="url"
-                value={coverImage}
-                onChange={(e) => setCoverImage(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              />
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2 border-t border-slate-100">
+            <ImageUploader
+              label="Business Logo"
+              value={logo}
+              onChange={setLogo}
+              folder="businesses"
+              aspectRatio="square"
+              hint="Square format (500x500px). Displays on digital passes."
+            />
+            <ImageUploader
+              label="Storefront Cover Banner"
+              value={coverImage}
+              onChange={setCoverImage}
+              folder="businesses"
+              aspectRatio="video"
+              hint="Wide banner (1200x600px). Displays in discovery."
+            />
           </div>
 
           <div className="pt-4 flex items-center justify-between border-t border-slate-100">

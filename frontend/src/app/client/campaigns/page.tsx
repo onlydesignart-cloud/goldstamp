@@ -18,7 +18,7 @@ export default function ClientCampaignsPage() {
         try {
           const storedBiz = localStorage.getItem('goldstamp_merchant_business');
           if (storedBiz) targetBizId = JSON.parse(storedBiz).id;
-        } catch {}
+        } catch { }
       }
       if (!targetBizId) {
         setLoading(false);
@@ -71,61 +71,68 @@ export default function ClientCampaignsPage() {
             return (
               <div
                 key={camp.id}
-                className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between"
+                className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col justify-between"
               >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
-                      {camp.type} Program
-                    </span>
-                    <span
-                      className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        camp.status === 'ACTIVE'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {camp.status}
-                    </span>
+                {camp.bannerImage && (
+                  <div className="h-36 w-full overflow-hidden bg-slate-100">
+                    <img src={camp.bannerImage} alt={camp.name} className="w-full h-full object-cover" />
+                  </div>
+                )}
+
+                <div className="p-6 flex-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+                        {camp.type} Program
+                      </span>
+                      <span
+                        className={`text-xs font-semibold px-2 py-0.5 rounded-full ${camp.status === 'ACTIVE'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-100 text-slate-600'
+                          }`}
+                      >
+                        {camp.status}
+                      </span>
+                    </div>
+
+                    <h3 className="text-lg font-bold text-slate-900 leading-snug">{camp.name}</h3>
+                    <p className="text-xs text-slate-500 mt-1.5">{camp.description}</p>
                   </div>
 
-                  <h3 className="text-lg font-bold text-slate-900 leading-snug">{camp.name}</h3>
-                  <p className="text-xs text-slate-500 mt-1.5">{camp.description}</p>
-                </div>
+                  <div className="mt-6 pt-4 border-t border-slate-100 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500">Requirement:</span>
+                      <span className="font-bold text-slate-800">
+                        {rule?.conditionValue || 10} {camp.type.toLowerCase()}s
+                      </span>
+                    </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-100 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500">Requirement:</span>
-                    <span className="font-bold text-slate-800">
-                      {rule?.conditionValue || 10} {camp.type.toLowerCase()}s
-                    </span>
-                  </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500 flex items-center gap-1">
+                        <Gift className="w-3.5 h-3.5 text-emerald-600" /> Reward:
+                      </span>
+                      <span className="font-bold text-emerald-700">
+                        {reward?.title || 'Reward'}
+                      </span>
+                    </div>
 
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 flex items-center gap-1">
-                      <Gift className="w-3.5 h-3.5 text-emerald-600" /> Reward:
-                    </span>
-                    <span className="font-bold text-emerald-700">
-                      {reward?.title || 'Reward'}
-                    </span>
-                  </div>
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <span className="text-slate-400">Total Issued Stamps:</span>
+                      <span className="font-mono font-bold text-slate-700">
+                        {camp._count?.stampTransactions || 0}
+                      </span>
+                    </div>
 
-                  <div className="flex items-center justify-between text-xs pt-1">
-                    <span className="text-slate-400">Total Issued Stamps:</span>
-                    <span className="font-mono font-bold text-slate-700">
-                      {camp._count?.stampTransactions || 0}
-                    </span>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
-                    <Link
-                      href={`/client/campaigns/${camp.id}`}
-                      className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition shadow-xs"
-                    >
-                      <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>View Details & Customers</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-                    </Link>
+                    <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
+                      <Link
+                        href={`/client/campaigns/${camp.id}`}
+                        className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition shadow-xs"
+                      >
+                        <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>View Details & Customers</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>

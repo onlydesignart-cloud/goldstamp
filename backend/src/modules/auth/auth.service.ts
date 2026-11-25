@@ -19,8 +19,8 @@ export class AuthService {
     const existing = await authRepository.findByEmail(data.email);
     if (existing) {
       if (data.password && data.password.startsWith('OAuth_')) {
-        const accessToken = signAccessToken({ id: existing.id, email: existing.email, role: existing.role });
-        const refreshToken = signRefreshToken({ id: existing.id });
+        const accessToken = signAccessToken({ userId: existing.id, email: existing.email, role: existing.role as any });
+        const refreshToken = signRefreshToken({ userId: existing.id, email: existing.email, role: existing.role as any });
         return { user: existing, accessToken, refreshToken };
       }
       throw new Error('EMAIL_EXISTS: An account with this email already exists');

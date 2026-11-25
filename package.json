@@ -12,6 +12,7 @@
     "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
     "dev:api": "npm run dev --workspace=backend",
     "dev:web": "npm run dev --workspace=frontend",
+    "dev:app": "npm run start --workspace=customer-app",
     "build": "npm run build --workspaces",
     "db:generate": "npm run db:generate --workspace=backend",
     "db:push": "npm run db:push --workspace=backend",

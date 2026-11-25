@@ -218,6 +218,7 @@ model Campaign {
   business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
   name           String
   description    String?
+  bannerImage    String?
   type           CampaignType   @default(STAMP)
   status         CampaignStatus @default(ACTIVE)
   startDate      DateTime       @default(now())
@@ -260,6 +261,7 @@ model Reward {
   campaign    Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   title       String
   description String?
+  image       String?
   type        RewardType   @default(FREE_SERVICE)
   value       String
   validFrom   DateTime     @default(now())
