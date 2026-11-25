@@ -25,11 +25,7 @@ import {
 type Tab = 'WALLET' | 'VOUCHERS' | 'EXPLORE' | 'PROFILE';
 
 export default function App() {
-  const [user, setUser] = useState<{ name: string; phone: string; email?: string } | null>({
-    name: 'Arjun Mehta',
-    phone: '9876543210',
-    email: 'arjun.mehta@gmail.com',
-  });
+  const [user, setUser] = useState<{ name: string; phone: string; email?: string } | null>(null);
   const [currentTab, setCurrentTab] = useState<Tab>('WALLET');
   const [isScanning, setIsScanning] = useState(false);
 

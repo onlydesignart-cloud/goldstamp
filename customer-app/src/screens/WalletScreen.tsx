@@ -24,13 +24,18 @@ interface WalletScreenProps {
 
 export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigateToScan, onNavigateToExplore }) => {
   const [cards, setCards] = useState<LoyaltyCard[]>([]);
+  const [redeemedCount, setRedeemedCount] = useState(0);
   const [selectedCardIndex, setSelectedCardIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const loadCards = async () => {
     setLoading(true);
-    const data = await CustomerApi.getCards();
-    setCards(data);
+    const [cardData, voucherData] = await Promise.all([
+      CustomerApi.getCards(),
+      CustomerApi.getVouchers(),
+    ]);
+    setCards(cardData);
+    setRedeemedCount(voucherData.filter((v) => v.status === 'REDEEMED').length);
     setLoading(false);
   };
 
@@ -210,7 +215,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ onNavigateToScan, on
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>2</Text>
+            <Text style={styles.statValue}>{redeemedCount}</Text>
             <Text style={styles.statLabel}>Redeemed</Text>
           </View>
         </View>

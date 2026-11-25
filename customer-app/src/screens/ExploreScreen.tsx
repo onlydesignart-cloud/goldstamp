@@ -15,8 +15,6 @@ import { Business } from '../types';
 import { CustomerApi } from '../services/api';
 import { SearchIcon, CheckIcon } from '../components/Icons';
 
-const CATEGORIES = ['All', 'Pickleball', 'Cafés', 'Box Cricket', 'Salons'];
-
 interface ExploreScreenProps {
   onJoinSuccess: () => void;
 }
@@ -26,21 +24,25 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [joiningId, setJoiningId] = useState<string | null>(null);
-  const [joinedMap, setJoinedMap] = useState<Record<string, boolean>>({
-    biz_smashzone: true,
-    biz_cafeartisan: true,
-    biz_powerbox: true,
-    biz_aurora: true,
-  });
+  const [joinedMap, setJoinedMap] = useState<Record<string, boolean>>({});
 
   const loadVenues = async () => {
     const list = await CustomerApi.getVenues(selectedCategory, searchQuery);
     setVenues(list);
+
+    const userCards = await CustomerApi.getCards();
+    const map: Record<string, boolean> = {};
+    userCards.forEach((c) => {
+      map[c.businessId] = true;
+    });
+    setJoinedMap(map);
   };
 
   useEffect(() => {
     loadVenues();
   }, [selectedCategory, searchQuery]);
+
+  const categories = ['All', ...Array.from(new Set(venues.map((v) => v.industry).filter(Boolean)))];
 
   const handleJoin = async (venueId: string) => {
     setJoiningId(venueId);
@@ -82,7 +84,7 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoryPills}
         >
-          {CATEGORIES.map((cat) => {
+          {categories.map((cat) => {
             const isSelected = selectedCategory === cat;
             return (
               <TouchableOpacity
@@ -101,7 +103,15 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {venues.map((venue) => {
+        {venues.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No Venues Available</Text>
+            <Text style={styles.emptySub}>
+              New participating merchant venues will automatically appear here once registered.
+            </Text>
+          </View>
+        ) : (
+          venues.map((venue) => {
           const isJoined = joinedMap[venue.id];
           const primaryCampaign = venue.campaigns?.[0];
 
@@ -174,7 +184,7 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
               </View>
             </View>
           );
-        })}
+        }))}
       </ScrollView>
     </SafeAreaView>
   );
@@ -380,5 +390,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.2,
+  },
+  emptyContainer: {
+    paddingVertical: 60,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  emptySub: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });
