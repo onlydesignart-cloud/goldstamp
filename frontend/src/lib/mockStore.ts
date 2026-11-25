@@ -1314,6 +1314,7 @@ class MockDataStore {
       businessId,
       name: campaignData.name,
       description: campaignData.description || '',
+      bannerImage: campaignData.bannerImage || null,
       type: campaignData.type || 'STAMP',
       status: 'ACTIVE',
       isRecurring: campaignData.isRecurring ?? true,

@@ -8,12 +8,13 @@ import {
   TextInput,
   StatusBar,
   Image,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Shadows } from '../theme/colors';
-import { Business } from '../types';
+import { Business, Campaign } from '../types';
 import { CustomerApi } from '../services/api';
-import { SearchIcon, CheckIcon } from '../components/Icons';
+import { SearchIcon, CheckIcon, CloseIcon, PiggyBankSketchIcon } from '../components/Icons';
 
 interface ExploreScreenProps {
   onJoinSuccess: () => void;
@@ -25,6 +26,7 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
   const [searchQuery, setSearchQuery] = useState('');
   const [joiningId, setJoiningId] = useState<string | null>(null);
   const [joinedMap, setJoinedMap] = useState<Record<string, boolean>>({});
+  const [selectedVenue, setSelectedVenue] = useState<Business | null>(null);
 
   const loadVenues = async () => {
     const list = await CustomerApi.getVenues(selectedCategory, searchQuery);
@@ -66,7 +68,7 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
           />
         </View>
 
-        {/* Clean Search Bar */}
+        {/* Search Bar */}
         <View style={styles.searchBar}>
           <SearchIcon size={16} color="#64748B" strokeWidth={2} />
           <TextInput
@@ -102,9 +104,11 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
         </ScrollView>
       </View>
 
+      {/* Venue List */}
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {venues.length === 0 ? (
           <View style={styles.emptyContainer}>
+            <PiggyBankSketchIcon size={72} color="#94A3B8" strokeWidth={1.5} />
             <Text style={styles.emptyTitle}>No Venues Available</Text>
             <Text style={styles.emptySub}>
               New participating merchant venues will automatically appear here once registered.
@@ -112,80 +116,297 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
           </View>
         ) : (
           venues.map((venue) => {
-          const isJoined = joinedMap[venue.id];
-          const primaryCampaign = venue.campaigns?.[0];
+            const isJoined = joinedMap[venue.id];
+            const campaigns = venue.campaigns || [];
+            const primaryCampaign = campaigns[0];
 
-          return (
-            <View key={venue.id} style={[styles.venueCard, Shadows.card]}>
-              <View style={styles.cardHeader}>
-                <View style={styles.venueLogo}>
-                  {venue.logo ? (
-                    <Image source={{ uri: venue.logo }} style={styles.venueLogoImg} resizeMode="cover" />
-                  ) : (
-                    <Text style={styles.venueLogoText}>
-                      {venue.name.substring(0, 2).toUpperCase()}
+            return (
+              <TouchableOpacity
+                key={venue.id}
+                style={[styles.venueCard, Shadows.card]}
+                activeOpacity={0.9}
+                onPress={() => setSelectedVenue(venue)}
+              >
+                {/* Optional Venue Cover Header if available */}
+                {venue.coverImage ? (
+                  <View style={styles.cardCoverContainer}>
+                    <Image source={{ uri: venue.coverImage }} style={styles.cardCoverImg} resizeMode="cover" />
+                  </View>
+                ) : null}
+
+                <View style={styles.cardHeader}>
+                  <View style={styles.venueLogo}>
+                    {venue.logo ? (
+                      <Image source={{ uri: venue.logo }} style={styles.venueLogoImg} resizeMode="cover" />
+                    ) : (
+                      <Text style={styles.venueLogoText}>
+                        {venue.name.substring(0, 2).toUpperCase()}
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.venueName} numberOfLines={1}>
+                      {venue.name}
                     </Text>
+                    <View style={styles.venueMetaRow}>
+                      <Text style={styles.metaIndustry}>{venue.industry}</Text>
+                      {venue.city && (
+                        <>
+                          <Text style={styles.metaDot}>•</Text>
+                          <Text style={styles.metaCity}>{venue.city}</Text>
+                        </>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Joined / Quick Join Badge */}
+                  {isJoined ? (
+                    <View style={styles.joinedPill}>
+                      <CheckIcon size={12} color="#059669" strokeWidth={2.5} />
+                      <Text style={styles.joinedPillText}>Joined</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.quickJoinBtn}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleJoin(venue.id);
+                      }}
+                      disabled={joiningId === venue.id}
+                    >
+                      <Text style={styles.quickJoinBtnText}>
+                        {joiningId === venue.id ? '...' : '+ Join'}
+                      </Text>
+                    </TouchableOpacity>
                   )}
                 </View>
 
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.venueName} numberOfLines={1}>
-                    {venue.name}
-                  </Text>
-                  <View style={styles.venueMetaRow}>
-                    <Text style={styles.metaIndustry}>{venue.industry}</Text>
-                    {venue.city && (
-                      <>
-                        <Text style={styles.metaDot}>•</Text>
-                        <Text style={styles.metaCity}>{venue.city}</Text>
-                      </>
-                    )}
-                  </View>
-                </View>
-              </View>
+                {/* Campaign Highlight Box */}
+                {primaryCampaign ? (
+                  <View style={styles.campaignBox}>
+                    {primaryCampaign.bannerImage ? (
+                      <View style={styles.campaignCardBannerBox}>
+                        <Image
+                          source={{ uri: primaryCampaign.bannerImage }}
+                          style={styles.campaignCardBannerImg}
+                          resizeMode="cover"
+                        />
+                      </View>
+                    ) : null}
 
-              {/* Campaign Highlight Box */}
-              {primaryCampaign && (
-                <View style={styles.campaignBox}>
-                  <View style={styles.campaignTopRow}>
-                    <Text style={styles.campaignBadge}>
-                      {primaryCampaign.targetStamps} VISITS PASS
-                    </Text>
-                  </View>
-                  <Text style={styles.campaignTitle}>{primaryCampaign.name}</Text>
-                  <View style={styles.rewardRow}>
-                    <Text style={styles.rewardLabel}>Reward</Text>
-                    <Text style={styles.rewardText} numberOfLines={1}>
-                      {primaryCampaign.rewardTitle}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Action Button */}
-              <View style={styles.cardActions}>
-                {isJoined ? (
-                  <View style={styles.joinedPill}>
-                    <CheckIcon size={12} color="#059669" strokeWidth={2.5} />
-                    <Text style={styles.joinedPillText}>Joined</Text>
+                    <View style={styles.campaignTopRow}>
+                      <Text style={styles.campaignBadge}>
+                        {primaryCampaign.targetStamps} VISITS PASS
+                      </Text>
+                      {campaigns.length > 1 && (
+                        <Text style={styles.multipleOffersBadge}>
+                          +{campaigns.length - 1} more offer{campaigns.length > 2 ? 's' : ''}
+                        </Text>
+                      )}
+                    </View>
+                    <Text style={styles.campaignTitle}>{primaryCampaign.name}</Text>
+                    <View style={styles.rewardRow}>
+                      <Text style={styles.rewardLabel}>Reward</Text>
+                      <Text style={styles.rewardText} numberOfLines={1}>
+                        {primaryCampaign.rewardTitle}
+                      </Text>
+                    </View>
                   </View>
                 ) : (
-                  <TouchableOpacity
-                    style={styles.joinBtn}
-                    onPress={() => handleJoin(venue.id)}
-                    disabled={joiningId === venue.id}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.joinBtnText}>
-                      {joiningId === venue.id ? 'Joining...' : 'Join'}
+                  <View style={styles.noOffersNoticeBox}>
+                    <Text style={styles.noOffersNoticeText}>
+                      No campaign offers active • Tap to view venue details
                     </Text>
-                  </TouchableOpacity>
+                  </View>
                 )}
-              </View>
-            </View>
-          );
-        }))}
+
+                {/* View Details Footer Link */}
+                <View style={styles.viewDetailsRow}>
+                  <Text style={styles.viewDetailsText}>
+                    {campaigns.length > 0
+                      ? `View all ${campaigns.length} offer${campaigns.length > 1 ? 's' : ''} & details →`
+                      : 'View venue details →'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
+
+      {/* VENUE DETAIL VIEW MODAL */}
+      <Modal
+        visible={!!selectedVenue}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelectedVenue(null)}
+      >
+        <SafeAreaView style={styles.detailModalSafe}>
+          <StatusBar barStyle="dark-content" />
+
+          {/* Modal Header */}
+          <View style={styles.modalHeaderBar}>
+            <TouchableOpacity
+              onPress={() => setSelectedVenue(null)}
+              style={styles.modalCloseBtn}
+              activeOpacity={0.7}
+            >
+              <CloseIcon size={18} color="#0F172A" strokeWidth={2} />
+              <Text style={styles.modalCloseText}>Back</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.modalHeaderTitle} numberOfLines={1}>
+              {selectedVenue?.name}
+            </Text>
+
+            <View style={{ width: 60 }} />
+          </View>
+
+          {selectedVenue && (
+            <ScrollView
+              contentContainerStyle={styles.detailScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Venue Hero Cover */}
+              {selectedVenue.coverImage ? (
+                <View style={styles.detailCoverWrap}>
+                  <Image
+                    source={{ uri: selectedVenue.coverImage }}
+                    style={styles.detailCoverImg}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.detailCoverOverlay} />
+                </View>
+              ) : null}
+
+              {/* Venue Info Header Card */}
+              <View style={[styles.detailVenueCard, Shadows.card]}>
+                <View style={styles.detailLogoRow}>
+                  <View style={styles.detailVenueLogo}>
+                    {selectedVenue.logo ? (
+                      <Image
+                        source={{ uri: selectedVenue.logo }}
+                        style={styles.venueLogoImg}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text style={styles.detailLogoText}>
+                        {selectedVenue.name.substring(0, 2).toUpperCase()}
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.detailVenueName}>{selectedVenue.name}</Text>
+                    <View style={styles.venueMetaRow}>
+                      <Text style={styles.detailIndustryBadge}>{selectedVenue.industry}</Text>
+                      {selectedVenue.city && (
+                        <Text style={styles.detailCityText}>{selectedVenue.city}</Text>
+                      )}
+                    </View>
+                  </View>
+                </View>
+
+                {selectedVenue.address && (
+                  <Text style={styles.detailAddressText}>{selectedVenue.address}</Text>
+                )}
+
+                {/* Join Venue CTA Button */}
+                <View style={styles.detailActionWrap}>
+                  {joinedMap[selectedVenue.id] ? (
+                    <View style={styles.detailJoinedPill}>
+                      <CheckIcon size={14} color="#059669" strokeWidth={2.5} />
+                      <Text style={styles.detailJoinedText}>Loyalty Member • Pass in Wallet</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.detailJoinBtn}
+                      onPress={() => handleJoin(selectedVenue.id)}
+                      disabled={joiningId === selectedVenue.id}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.detailJoinBtnText}>
+                        {joiningId === selectedVenue.id ? 'Joining Program...' : 'Join Venue & Collect Stamps'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              {/* OFFERS SECTION */}
+              <View style={styles.detailSectionHeader}>
+                <Text style={styles.detailSectionTitle}>Active Campaign Offers</Text>
+                <View style={styles.detailOffersCountBadge}>
+                  <Text style={styles.detailOffersCountText}>
+                    {selectedVenue.campaigns?.length || 0} Available
+                  </Text>
+                </View>
+              </View>
+
+              {/* List of Multiple Campaigns or Empty State */}
+              {selectedVenue.campaigns && selectedVenue.campaigns.length > 0 ? (
+                <View style={styles.campaignsListWrap}>
+                  {selectedVenue.campaigns.map((camp, index) => (
+                    <View key={camp.id || index} style={[styles.detailCampaignCard, Shadows.card]}>
+                      {/* Campaign Promo Banner */}
+                      {camp.bannerImage ? (
+                        <View style={styles.detailCampBannerWrap}>
+                          <Image
+                            source={{ uri: camp.bannerImage }}
+                            style={styles.detailCampBannerImg}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      ) : null}
+
+                      <View style={styles.detailCampBody}>
+                        {/* Target badge & Type */}
+                        <View style={styles.campBadgeRow}>
+                          <View style={styles.campPassBadge}>
+                            <Text style={styles.campPassBadgeText}>
+                              {camp.targetStamps} STAMPS PASS
+                            </Text>
+                          </View>
+                          <Text style={styles.campTypeLabel}>
+                            {camp.type === 'VISIT' ? 'Visit Program' : 'Stamp Card'}
+                          </Text>
+                        </View>
+
+                        {/* Title & Description */}
+                        <Text style={styles.campCardTitle}>{camp.name}</Text>
+                        {camp.description ? (
+                          <Text style={styles.campCardDesc}>{camp.description}</Text>
+                        ) : null}
+
+                        {/* Reward Highlight Box */}
+                        <View style={styles.campRewardHighlight}>
+                          <View style={styles.campRewardIconBox}>
+                            <Text style={{ fontSize: 14 }}>🎁</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.campRewardHighlightLabel}>Milestone Reward</Text>
+                            <Text style={styles.campRewardHighlightVal}>{camp.rewardTitle}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                /* EMPTY STATE: "No Campaign Offers Yet" with cute Piggy sketch icon */
+                <View style={styles.noCampaignEmptyBox}>
+                  <PiggyBankSketchIcon size={80} color="#94A3B8" strokeWidth={1.6} />
+                  <Text style={styles.noCampaignTitle}>No Campaign Offers Yet</Text>
+                  <Text style={styles.noCampaignSub}>
+                    This venue hasn't launched any loyalty offers yet. Check back soon for exciting rewards and stamp cards!
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          )}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -261,10 +482,22 @@ const styles = StyleSheet.create({
   },
   venueCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     padding: 16,
+    overflow: 'hidden',
+  },
+  cardCoverContainer: {
+    height: 100,
+    marginHorizontal: -16,
+    marginTop: -16,
+    marginBottom: 12,
+    backgroundColor: '#F1F5F9',
+  },
+  cardCoverImg: {
+    width: '100%',
+    height: '100%',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -275,7 +508,7 @@ const styles = StyleSheet.create({
   venueLogo: {
     width: 44,
     height: 44,
-    borderRadius: 8,
+    borderRadius: 10,
     backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
@@ -315,29 +548,78 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94A3B8',
   },
+  quickJoinBtn: {
+    backgroundColor: '#0F172A',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  quickJoinBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  joinedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  joinedPillText: {
+    color: '#065F46',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   campaignBox: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#F1F5F9',
     padding: 12,
-    marginBottom: 14,
+    marginBottom: 10,
+  },
+  campaignCardBannerBox: {
+    height: 90,
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginBottom: 10,
+    backgroundColor: '#E2E8F0',
+  },
+  campaignCardBannerImg: {
+    width: '100%',
+    height: '100%',
   },
   campaignTopRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 4,
   },
   campaignBadge: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
     color: '#D97706',
     letterSpacing: 0.5,
   },
+  multipleOffersBadge: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0284C7',
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
   campaignTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   rewardRow: {
     flexDirection: 'row',
@@ -359,54 +641,319 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     flex: 1,
   },
-  cardActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  joinedPill: {
-    flexDirection: 'row',
+  noOffersNoticeBox: {
+    padding: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#ECFDF5',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
+    marginBottom: 8,
   },
-  joinedPillText: {
-    color: '#065F46',
-    fontSize: 12,
+  noOffersNoticeText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  viewDetailsRow: {
+    alignItems: 'flex-end',
+    paddingTop: 4,
+  },
+  viewDetailsText: {
+    fontSize: 11,
     fontWeight: '700',
-  },
-  joinBtn: {
-    backgroundColor: '#000000',
-    paddingVertical: 8,
-    paddingHorizontal: 22,
-    borderRadius: 6,
-  },
-  joinBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    color: '#0284C7',
   },
   emptyContainer: {
     paddingVertical: 60,
     paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
   },
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#0F172A',
-    marginBottom: 8,
+    marginTop: 8,
   },
   emptySub: {
     fontSize: 13,
     color: '#64748B',
     textAlign: 'center',
     lineHeight: 18,
+  },
+
+  // Modal Detailed View Styles
+  detailModalSafe: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  modalHeaderBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  modalCloseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  modalCloseText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  modalHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    maxWidth: 200,
+  },
+  detailScrollContent: {
+    paddingBottom: 40,
+  },
+  detailCoverWrap: {
+    height: 140,
+    width: '100%',
+    backgroundColor: '#0F172A',
+    position: 'relative',
+  },
+  detailCoverImg: {
+    width: '100%',
+    height: '100%',
+  },
+  detailCoverOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  detailVenueCard: {
+    backgroundColor: '#FFFFFF',
+    margin: 16,
+    marginTop: -20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 16,
+  },
+  detailLogoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 10,
+  },
+  detailVenueLogo: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: '#0F172A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  detailLogoText: {
+    color: '#F59E0B',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  detailVenueName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.3,
+  },
+  detailIndustryBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#D97706',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+  },
+  detailCityText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  detailAddressText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 12,
+  },
+  detailActionWrap: {
+    marginTop: 8,
+  },
+  detailJoinedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  detailJoinedText: {
+    color: '#065F46',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  detailJoinBtn: {
+    backgroundColor: '#0F172A',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailJoinBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  detailSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  detailSectionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+  detailOffersCountBadge: {
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  detailOffersCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  campaignsListWrap: {
+    paddingHorizontal: 16,
+    gap: 14,
+  },
+  detailCampaignCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+  },
+  detailCampBannerWrap: {
+    height: 130,
+    width: '100%',
+    backgroundColor: '#F1F5F9',
+  },
+  detailCampBannerImg: {
+    width: '100%',
+    height: '100%',
+  },
+  detailCampBody: {
+    padding: 16,
+  },
+  campBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  campPassBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 4,
+  },
+  campPassBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#B45309',
+    letterSpacing: 0.5,
+  },
+  campTypeLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  campCardTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  campCardDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  campRewardHighlight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    borderRadius: 8,
+    padding: 10,
+  },
+  campRewardIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  campRewardHighlightLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#D97706',
+    textTransform: 'uppercase',
+  },
+  campRewardHighlightVal: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+
+  // Empty state in Detail Modal
+  noCampaignEmptyBox: {
+    margin: 20,
+    padding: 32,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  noCampaignTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 6,
+  },
+  noCampaignSub: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 280,
   },
 });

@@ -1464,6 +1464,7 @@ export const api = {
             businessId: validBizId,
             name: cleanData.name,
             description: cleanData.description || 'Collect 1 stamp per visit. Complete the card to unlock your reward!',
+            bannerImage: cleanData.bannerImage || data.bannerImage || null,
             type: cleanData.type || 'STAMP',
             status: 'ACTIVE',
             startDate: new Date().toISOString(),
@@ -1502,6 +1503,7 @@ export const api = {
             businessId: validBizId,
             name: data.name,
             description: data.description,
+            bannerImage: cleanData.bannerImage || data.bannerImage || null,
             type: data.type || 'STAMP',
             status: 'ACTIVE',
             rules: [{
@@ -1530,6 +1532,26 @@ export const api = {
 
       return mockResult;
     }, 'Campaign created successfully');
+  },
+
+    updateCampaignBanner: async (campaignId: string, bannerImage: string): Promise<ApiResponse<any>> => {
+    if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient();
+        await supabase
+          .from('Campaign')
+          .update({ bannerImage, updatedAt: new Date().toISOString() })
+          .eq('id', campaignId);
+      } catch (e) {
+        console.warn('Supabase updateCampaignBanner note:', e);
+      }
+    }
+    return asyncWrap(() => {
+      const db = mockStore.getRaw();
+      const cmp = db.campaigns.find((c) => c.id === campaignId);
+      if (cmp) cmp.bannerImage = bannerImage;
+      return cmp;
+    }, 'Campaign banner updated successfully');
   },
 
   updateCampaignStatus: async (id: string, status: string): Promise<ApiResponse<any>> => {

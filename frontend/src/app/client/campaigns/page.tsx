@@ -4,40 +4,78 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../../lib/auth-context';
 import { api } from '../../../lib/api';
-import { Megaphone, Plus, Gift, CheckCircle2, Clock, Eye, BarChart3, Users, ArrowRight } from 'lucide-react';
+import { ImageUploader } from '../../../components/ImageUploader';
+import {
+  Megaphone,
+  Plus,
+  Gift,
+  CheckCircle2,
+  Clock,
+  Eye,
+  BarChart3,
+  Users,
+  ArrowRight,
+  Image as ImageIcon,
+  Edit3,
+  X,
+  Sparkles,
+} from 'lucide-react';
 
 export default function ClientCampaignsPage() {
   const { business } = useAuth();
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingCamp, setEditingCamp] = useState<any | null>(null);
+  const [newBannerUrl, setNewBannerUrl] = useState('');
+  const [savingBanner, setSavingBanner] = useState(false);
+
+  async function loadCampaigns() {
+    let targetBizId = business?.id;
+    if (!targetBizId && typeof window !== 'undefined') {
+      try {
+        const storedBiz = localStorage.getItem('goldstamp_merchant_business');
+        if (storedBiz) targetBizId = JSON.parse(storedBiz).id;
+      } catch { }
+    }
+    if (!targetBizId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.getCampaigns(targetBizId);
+      if (res.success && res.data) {
+        setCampaigns(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load campaigns:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function load() {
-      let targetBizId = business?.id;
-      if (!targetBizId && typeof window !== 'undefined') {
-        try {
-          const storedBiz = localStorage.getItem('goldstamp_merchant_business');
-          if (storedBiz) targetBizId = JSON.parse(storedBiz).id;
-        } catch { }
-      }
-      if (!targetBizId) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const res = await api.getCampaigns(targetBizId);
-        if (res.success && res.data) {
-          setCampaigns(res.data);
-        }
-      } catch (err) {
-        console.error('Failed to load campaigns:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
+    loadCampaigns();
   }, [business]);
+
+  const handleSaveBanner = async () => {
+    if (!editingCamp) return;
+    setSavingBanner(true);
+    try {
+      const res = await (api as any).updateCampaignBanner(editingCamp.id, newBannerUrl);
+      if (res.success) {
+        setCampaigns((prev) =>
+          prev.map((c) => (c.id === editingCamp.id ? { ...c, bannerImage: newBannerUrl } : c))
+        );
+        setEditingCamp(null);
+        setNewBannerUrl('');
+      }
+    } catch (err) {
+      console.error('Failed to update banner:', err);
+    } finally {
+      setSavingBanner(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -73,10 +111,47 @@ export default function ClientCampaignsPage() {
                 key={camp.id}
                 className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col justify-between"
               >
-                {camp.bannerImage && (
-                  <div className="h-36 w-full overflow-hidden bg-slate-100">
-                    <img src={camp.bannerImage} alt={camp.name} className="w-full h-full object-cover" />
+                {/* Banner Header with Edit Ability */}
+                {camp.bannerImage ? (
+                  <div className="h-40 w-full overflow-hidden bg-slate-100 relative group">
+                    <img
+                      src={camp.bannerImage}
+                      alt={camp.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingCamp(camp);
+                          setNewBannerUrl(camp.bannerImage || '');
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-white/95 text-slate-900 font-bold text-xs shadow-md hover:bg-white flex items-center gap-1.5 transition"
+                      >
+                        <Edit3 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Change Cover Banner</span>
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingCamp(camp);
+                      setNewBannerUrl('');
+                    }}
+                    className="h-28 w-full bg-slate-50 hover:bg-emerald-50/40 border-b border-dashed border-slate-200 transition flex flex-col items-center justify-center gap-1 cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-xs group-hover:border-emerald-400">
+                      <ImageIcon className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-700 group-hover:text-emerald-700">
+                      + Add Campaign Cover Banner
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Upload or paste Cloudinary image URL
+                    </span>
+                  </button>
                 )}
 
                 <div className="p-6 flex-1 flex flex-col justify-between">
@@ -103,7 +178,7 @@ export default function ClientCampaignsPage() {
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-500">Requirement:</span>
                       <span className="font-bold text-slate-800">
-                        {rule?.conditionValue || 10} {camp.type.toLowerCase()}s
+                        {rule?.conditionValue || camp.targetStamps || 5} {camp.type.toLowerCase()}s
                       </span>
                     </div>
 
@@ -112,14 +187,7 @@ export default function ClientCampaignsPage() {
                         <Gift className="w-3.5 h-3.5 text-emerald-600" /> Reward:
                       </span>
                       <span className="font-bold text-emerald-700">
-                        {reward?.title || 'Reward'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs pt-1">
-                      <span className="text-slate-400">Total Issued Stamps:</span>
-                      <span className="font-mono font-bold text-slate-700">
-                        {camp._count?.stampTransactions || 0}
+                        {camp.rewardTitle || reward?.title || 'Reward'}
                       </span>
                     </div>
 
@@ -154,6 +222,59 @@ export default function ClientCampaignsPage() {
           </div>
         )}
       </div>
+
+      {/* BANNER EDIT MODAL */}
+      {editingCamp && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Update Campaign Cover Banner
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {editingCamp.name} • Displays on customer cards and venue details
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingCamp(null)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <ImageUploader
+              label="Select or Paste Banner Image"
+              value={newBannerUrl}
+              onChange={setNewBannerUrl}
+              folder="campaigns"
+              aspectRatio="video"
+              hint="Upload PNG/JPG to Cloudinary or paste direct Cloudinary URL"
+            />
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditingCamp(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveBanner}
+                disabled={savingBanner || !newBannerUrl}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{savingBanner ? 'Saving...' : 'Save Banner to Cloudinary'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
