@@ -324,12 +324,12 @@ export const ExploreScreen: React.FC<ExploreScreenProps> = ({ onJoinSuccess }) =
 
               {/* OFFERS SECTION */}
               <View style={styles.detailSectionHeader}>
-                <div>
+                <View>
                   <Text style={styles.detailSectionTitle}>Select Campaign to Join</Text>
                   <Text style={styles.detailSectionSubtitle}>
                     Join the specific campaign you want to add to your Wallet
                   </Text>
-                </div>
+                </View>
                 <View style={styles.detailOffersCountBadge}>
                   <Text style={styles.detailOffersCountText}>
                     {selectedVenue.campaigns?.length || 0} Available
