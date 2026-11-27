@@ -45,15 +45,156 @@ const saveJoinedCampaignIds = (ids: string[]) => {
 
 export const CustomerApi = {
   // Set active customer profile on login
-  setCurrentCustomer: (user: { name: string; phone: string; email?: string; whatsapp?: string }) => {
-    const cleanPhone = user.phone.replace(/[^0-9]/g, '');
+  setCurrentCustomer: (user: { id?: string; name: string; phone: string; email?: string; whatsapp?: string }) => {
+    const cleanPhone = (user.phone || '').replace(/[^0-9]/g, '');
     currentCustomer = {
-      id: `usr_${cleanPhone}`,
+      id: user.id || (cleanPhone ? `usr_${cleanPhone}` : `usr_${Date.now()}`),
       name: user.name,
       phone: cleanPhone,
       email: user.email || `${cleanPhone}@goldstamp.app`,
       whatsapp: user.whatsapp || cleanPhone,
     };
+  },
+
+  // Check if email already exists in Supabase User table
+  checkEmailExists: async (email: string): Promise<boolean> => {
+    const cleanEmail = email.trim().toLowerCase();
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/User?email=eq.${encodeURIComponent(cleanEmail)}&select=id&limit=1`,
+        {
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+          },
+        }
+      );
+      if (res.ok) {
+        const rows = await res.json();
+        return Array.isArray(rows) && rows.length > 0;
+      }
+    } catch {}
+    return false;
+  },
+
+  // Send genuine 4-digit OTP to customer's email via Vercel /api/send-otp (Gmail SMTP)
+  sendEmailOtp: async (email: string, name: string, code: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch('https://goldstamp.vercel.app/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          name: name.trim(),
+          code,
+          type: 'CUSTOMER',
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        return { success: true };
+      }
+      return { success: false, error: json.error || 'Failed to send verification email.' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error while sending verification email.' };
+    }
+  },
+
+  // Register verified customer with Email + Password in Supabase
+  registerWithEmail: async (data: {
+    name: string;
+    email: string;
+    phone: string;
+    whatsapp?: string;
+    password: string;
+  }): Promise<{ success: boolean; user?: any; error?: string }> => {
+    const cleanEmail = data.email.trim().toLowerCase();
+    const cleanPhone = data.phone.replace(/[^0-9]/g, '');
+    const custId = cleanPhone ? `usr_${cleanPhone}` : `usr_cust_${Date.now()}`;
+
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/User`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: custId,
+          name: data.name.trim(),
+          email: cleanEmail,
+          phone: cleanPhone,
+          passwordHash: data.password,
+          role: 'CUSTOMER',
+          status: 'ACTIVE',
+          updatedAt: new Date().toISOString(),
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        return { success: false, error: errText || 'Failed to create account.' };
+      }
+
+      const loggedUser = {
+        id: custId,
+        name: data.name.trim(),
+        email: cleanEmail,
+        phone: cleanPhone,
+        whatsapp: (data.whatsapp || cleanPhone).replace(/[^0-9+]/g, ''),
+      };
+      CustomerApi.setCurrentCustomer(loggedUser);
+      return { success: true, user: loggedUser };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to register account.' };
+    }
+  },
+
+  // Sign In with Email + Password against Supabase User table
+  loginWithEmail: async (
+    email: string,
+    password: string
+  ): Promise<{ success: boolean; user?: any; error?: string }> => {
+    const cleanEmail = email.trim().toLowerCase();
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/User?email=eq.${encodeURIComponent(cleanEmail)}&select=*&limit=1`,
+        {
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        return { success: false, error: 'Unable to reach authentication server.' };
+      }
+
+      const rows = await res.json();
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return { success: false, error: 'No account found with this email. Please register first.' };
+      }
+
+      const dbUser = rows[0];
+      if (dbUser.passwordHash && dbUser.passwordHash !== password && dbUser.passwordHash !== 'MOBILE_OTP_VERIFIED') {
+        return { success: false, error: 'Incorrect password. Please try again.' };
+      }
+
+      const loggedUser = {
+        id: dbUser.id,
+        name: dbUser.name || 'Customer',
+        email: dbUser.email,
+        phone: dbUser.phone || '',
+        whatsapp: dbUser.phone || '',
+      };
+      CustomerApi.setCurrentCustomer(loggedUser);
+      return { success: true, user: loggedUser };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Sign in failed. Please try again.' };
+    }
   },
 
   // Fetch existing profile from Supabase User table by mobile number

@@ -12,24 +12,28 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, Shadows } from '../theme/colors';
+import { Shadows } from '../theme/colors';
 import { CustomerApi } from '../services/api';
 import { validateProfileForm } from '../utils/validation';
 
 interface AuthScreenProps {
-  onLoginSuccess: (user: { name: string; phone: string; email?: string; whatsapp?: string }) => void;
+  onLoginSuccess: (user: { id?: string; name: string; phone: string; email?: string; whatsapp?: string }) => void;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const [mode, setMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
-  const [step, setStep] = useState<'PHONE' | 'OTP' | 'PROFILE_SETUP'>('PHONE');
+  const [step, setStep] = useState<'FORM' | 'OTP'>('FORM');
 
   // Fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // OTP state
   const [otp, setOtp] = useState('');
+  const [sentOtp, setSentOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendTimer, setResendTimer] = useState(45);
@@ -42,98 +46,130 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
     return () => clearInterval(timer);
   }, [step, resendTimer]);
 
-  const handleSendOtp = () => {
+  const handleLogin = async () => {
     setError(null);
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const cleanEmail = email.trim().toLowerCase();
 
-    if (cleanPhone.length < 10) {
-      setError('Please enter a valid 10-digit mobile number');
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (!password || password.length < 4) {
+      setError('Please enter your password.');
       return;
     }
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setStep('OTP');
-      setResendTimer(45);
-    }, 500);
-  };
+    const res = await CustomerApi.loginWithEmail(cleanEmail, password);
+    setLoading(false);
 
-  const handleVerifyOtp = async () => {
-    setError(null);
-    if (otp.trim().length !== 4) {
-      setError('Please enter the 4-digit code');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Check if existing profile is already completed in DB
-      const existing = await CustomerApi.getProfileByPhone(phone);
-      if (existing && mode === 'LOGIN') {
-        setLoading(false);
-        onLoginSuccess(existing);
-        return;
-      }
-
-      // Otherwise go to Profile Completion step
-      setWhatsapp(phone.replace(/[^0-9]/g, ''));
-      setLoading(false);
-      setStep('PROFILE_SETUP');
-    } catch {
-      setWhatsapp(phone.replace(/[^0-9]/g, ''));
-      setLoading(false);
-      setStep('PROFILE_SETUP');
+    if (res.success && res.user) {
+      onLoginSuccess(res.user);
+    } else {
+      setError(res.error || 'Invalid email or password.');
     }
   };
 
-  const handleCompleteProfile = async () => {
+  const handleRegisterStart = async () => {
     setError(null);
+
     const validation = validateProfileForm({
       fullName: name,
       email,
-      whatsapp: whatsapp || phone,
+      whatsapp: phone,
     });
 
     if (!validation.isValid) {
-      setError(validation.error || 'Please check your profile details.');
+      setError(validation.error || 'Please check your details.');
+      return;
+    }
+
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (cleanPhone.length < 10) {
+      setError('Please enter a valid 10-digit WhatsApp / Mobile number.');
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setError('Password must be at least 6 characters long.');
       return;
     }
 
     setLoading(true);
     try {
-      const cleanPhone = phone.replace(/[^0-9]/g, '');
-      await CustomerApi.updateProfile({
-        name: validation.clean.name,
-        email: validation.clean.email,
-        phone: cleanPhone,
-        whatsapp: validation.clean.whatsapp || cleanPhone,
-      });
+      const exists = await CustomerApi.checkEmailExists(validation.clean.email);
+      if (exists) {
+        setLoading(false);
+        setError('An account with this email is already registered. Please Sign In.');
+        return;
+      }
+
+      const code = Math.floor(1000 + Math.random() * 9000).toString();
+      const otpRes = await CustomerApi.sendEmailOtp(
+        validation.clean.email,
+        validation.clean.name,
+        code
+      );
 
       setLoading(false);
-      onLoginSuccess({
-        name: validation.clean.name,
-        email: validation.clean.email,
-        phone: cleanPhone,
-        whatsapp: validation.clean.whatsapp || cleanPhone,
-      });
+      if (!otpRes.success) {
+        setError(otpRes.error || 'Failed to send verification code to email.');
+        return;
+      }
+
+      setSentOtp(code);
+      setOtp('');
+      setResendTimer(45);
+      setStep('OTP');
     } catch (err: any) {
       setLoading(false);
-      setError(err.message || 'Failed to save profile. Please try again.');
+      setError(err.message || 'Registration failed. Please try again.');
     }
   };
 
-  const handleGoogleSignIn = () => {
+  const handleResendOtp = async () => {
+    if (resendTimer > 0 || loading) return;
+    setError(null);
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      onLoginSuccess({
-        name: 'Arjun Mehta',
-        phone: '9876543210',
-        email: 'arjun.mehta@gmail.com',
-        whatsapp: '9876543210',
-      });
-    }, 600);
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    const otpRes = await CustomerApi.sendEmailOtp(email.trim().toLowerCase(), name.trim(), code);
+    setLoading(false);
+    if (otpRes.success) {
+      setSentOtp(code);
+      setResendTimer(45);
+    } else {
+      setError(otpRes.error || 'Failed to resend code.');
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    setError(null);
+    if (otp.trim().length !== 4) {
+      setError('Please enter the 4-digit verification code sent to your email.');
+      return;
+    }
+
+    if (otp.trim() !== sentOtp) {
+      setError('Incorrect verification code. Please check your email inbox.');
+      return;
+    }
+
+    setLoading(true);
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const regRes = await CustomerApi.registerWithEmail({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      phone: cleanPhone,
+      whatsapp: cleanPhone,
+      password,
+    });
+    setLoading(false);
+
+    if (regRes.success && regRes.user) {
+      onLoginSuccess(regRes.user);
+    } else {
+      setError(regRes.error || 'Could not complete registration.');
+    }
   };
 
   return (
@@ -160,14 +196,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
 
           {/* Card Container */}
           <View style={[styles.authCard, Shadows.card]}>
-            {/* 2-Segment Switcher (only shown before profile setup) */}
-            {step !== 'PROFILE_SETUP' && (
+            {/* 2-Segment Switcher */}
+            {step === 'FORM' && (
               <View style={styles.tabSwitcher}>
                 <TouchableOpacity
                   style={[styles.tabBtn, mode === 'LOGIN' && styles.tabBtnActive]}
                   onPress={() => {
                     setMode('LOGIN');
-                    setStep('PHONE');
                     setError(null);
                   }}
                   activeOpacity={0.8}
@@ -181,7 +216,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                   style={[styles.tabBtn, mode === 'REGISTER' && styles.tabBtnActive]}
                   onPress={() => {
                     setMode('REGISTER');
-                    setStep('PHONE');
                     setError(null);
                   }}
                   activeOpacity={0.8}
@@ -200,64 +234,160 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
               </View>
             )}
 
-            {/* Step 1: Phone Number Input */}
-            {step === 'PHONE' ? (
-              <View style={styles.formSection}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>
-                    Mobile Number <Text style={styles.requiredStar}>*</Text>
-                  </Text>
-                  <View style={styles.phoneInputRow}>
-                    <View style={styles.countryCodeBox}>
-                      <Text style={styles.countryCodeText}>+91</Text>
-                    </View>
+            {step === 'FORM' ? (
+              mode === 'LOGIN' ? (
+                /* SIGN IN FORM (Email + Password) */
+                <View style={styles.formSection}>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>
+                      Email Address <Text style={styles.requiredStar}>*</Text>
+                    </Text>
                     <TextInput
-                      placeholder="98765 43210"
+                      placeholder="rohan@example.com"
                       placeholderTextColor="#94A3B8"
-                      value={phone}
-                      onChangeText={setPhone}
-                      keyboardType="phone-pad"
-                      maxLength={10}
-                      style={[styles.textInput, { flex: 1 }]}
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      style={styles.textInput}
                     />
                   </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>
+                      Password <Text style={styles.requiredStar}>*</Text>
+                    </Text>
+                    <View style={styles.passwordRow}>
+                      <TextInput
+                        placeholder="Enter your password"
+                        placeholderTextColor="#94A3B8"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        style={[styles.textInput, { flex: 1 }]}
+                      />
+                      <TouchableOpacity
+                        style={styles.eyeBtn}
+                        onPress={() => setShowPassword(!showPassword)}
+                      >
+                        <Text style={styles.eyeBtnText}>
+                          {showPassword ? 'Hide' : 'Show'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.primaryBtn}
+                    onPress={handleLogin}
+                    disabled={loading}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.primaryBtnText}>
+                      {loading ? 'Signing In...' : 'Sign In to Wallet'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
+              ) : (
+                /* REGISTER FORM (Full Name, Email, WhatsApp, Password) */
+                <View style={styles.formSection}>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>
+                      Full Name <Text style={styles.requiredStar}>*</Text>
+                    </Text>
+                    <TextInput
+                      placeholder="e.g. Rohan Sharma"
+                      placeholderTextColor="#94A3B8"
+                      value={name}
+                      onChangeText={setName}
+                      autoCapitalize="words"
+                      style={styles.textInput}
+                    />
+                  </View>
 
-                <TouchableOpacity
-                  style={styles.primaryBtn}
-                  onPress={handleSendOtp}
-                  disabled={loading}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.primaryBtnText}>
-                    {loading ? 'Sending...' : mode === 'LOGIN' ? 'Continue' : 'Register with OTP'}
-                  </Text>
-                </TouchableOpacity>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>
+                      Email Address <Text style={styles.requiredStar}>*</Text>
+                    </Text>
+                    <TextInput
+                      placeholder="rohan@example.com"
+                      placeholderTextColor="#94A3B8"
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      style={styles.textInput}
+                    />
+                  </View>
 
-                {/* Divider */}
-                <View style={styles.dividerRow}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>OR</Text>
-                  <View style={styles.dividerLine} />
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>
+                      WhatsApp Number <Text style={styles.requiredStar}>*</Text>
+                    </Text>
+                    <View style={styles.phoneInputRow}>
+                      <View style={styles.countryCodeBox}>
+                        <Text style={styles.countryCodeText}>+91</Text>
+                      </View>
+                      <TextInput
+                        placeholder="98765 43210"
+                        placeholderTextColor="#94A3B8"
+                        value={phone}
+                        onChangeText={setPhone}
+                        keyboardType="phone-pad"
+                        maxLength={10}
+                        style={[styles.textInput, { flex: 1 }]}
+                      />
+                    </View>
+                    <View style={styles.whatsappNoteBox}>
+                      <Text style={styles.whatsappNoteText}>
+                        📱 Get live stamp &amp; reward updates on WhatsApp
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>
+                      Create Password <Text style={styles.requiredStar}>*</Text>
+                    </Text>
+                    <View style={styles.passwordRow}>
+                      <TextInput
+                        placeholder="Min. 6 characters"
+                        placeholderTextColor="#94A3B8"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        style={[styles.textInput, { flex: 1 }]}
+                      />
+                      <TouchableOpacity
+                        style={styles.eyeBtn}
+                        onPress={() => setShowPassword(!showPassword)}
+                      >
+                        <Text style={styles.eyeBtnText}>
+                          {showPassword ? 'Hide' : 'Show'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.primaryBtn}
+                    onPress={handleRegisterStart}
+                    disabled={loading}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.primaryBtnText}>
+                      {loading ? 'Sending Verification Code...' : 'Register & Verify Email'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-
-                {/* 1-Tap Google Sign-In */}
-                <TouchableOpacity
-                  style={styles.googleBtn}
-                  onPress={handleGoogleSignIn}
-                  disabled={loading}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.googleBtnText}>Google</Text>
-                </TouchableOpacity>
-              </View>
-            ) : step === 'OTP' ? (
-              /* Step 2: OTP Verification */
+              )
+            ) : (
+              /* STEP 2: GENUINE EMAIL OTP VERIFICATION */
               <View style={styles.otpSection}>
                 <View style={styles.otpHeader}>
-                  <Text style={styles.otpHeaderTitle}>Verification Code</Text>
+                  <Text style={styles.otpHeaderTitle}>Verify Your Email</Text>
                   <Text style={styles.otpHeaderSub}>
-                    Sent to +91 {phone}
+                    We sent a 4-digit code to {email.trim().toLowerCase()}
                   </Text>
                 </View>
 
@@ -274,12 +404,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
 
                 <TouchableOpacity
                   style={styles.primaryBtn}
-                  onPress={handleVerifyOtp}
+                  onPress={handleVerifyEmailOtp}
                   disabled={loading || otp.length !== 4}
                   activeOpacity={0.85}
                 >
                   <Text style={styles.primaryBtnText}>
-                    {loading ? 'Verifying...' : 'Verify'}
+                    {loading ? 'Creating Account...' : 'Verify & Open Wallet'}
                   </Text>
                 </TouchableOpacity>
 
@@ -289,94 +419,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                       Resend in {resendTimer}s
                     </Text>
                   ) : (
-                    <TouchableOpacity onPress={handleSendOtp} activeOpacity={0.7}>
-                      <Text style={styles.resendBtnText}>Resend</Text>
+                    <TouchableOpacity onPress={handleResendOtp} activeOpacity={0.7}>
+                      <Text style={styles.resendBtnText}>Resend Code</Text>
                     </TouchableOpacity>
                   )}
 
                   <TouchableOpacity
                     onPress={() => {
-                      setStep('PHONE');
+                      setStep('FORM');
                       setOtp('');
+                      setError(null);
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.changePhoneText}>Back</Text>
+                    <Text style={styles.changePhoneText}>Edit Details</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
-            ) : (
-              /* Step 3: Mandatory Profile Completion */
-              <View style={styles.formSection}>
-                <View style={styles.profileSetupHeader}>
-                  <Text style={styles.profileSetupTitle}>Complete Your Profile</Text>
-                  <Text style={styles.profileSetupSub}>
-                    Please provide your details to activate your digital stamp wallet.
-                  </Text>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>
-                    Full Name <Text style={styles.requiredStar}>*</Text>
-                  </Text>
-                  <TextInput
-                    placeholder="e.g. Rohan Sharma"
-                    placeholderTextColor="#94A3B8"
-                    value={name}
-                    onChangeText={setName}
-                    style={styles.textInput}
-                    autoCapitalize="words"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>
-                    Email Address <Text style={styles.requiredStar}>*</Text>
-                  </Text>
-                  <TextInput
-                    placeholder="rohan@example.com"
-                    placeholderTextColor="#94A3B8"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    style={styles.textInput}
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>WhatsApp Number</Text>
-                  <View style={styles.phoneInputRow}>
-                    <View style={styles.countryCodeBox}>
-                      <Text style={styles.countryCodeText}>+91</Text>
-                    </View>
-                    <TextInput
-                      placeholder="WhatsApp number"
-                      placeholderTextColor="#94A3B8"
-                      value={whatsapp}
-                      onChangeText={setWhatsapp}
-                      keyboardType="phone-pad"
-                      maxLength={10}
-                      style={[styles.textInput, { flex: 1 }]}
-                    />
-                  </View>
-                  <View style={styles.whatsappNoteBox}>
-                    <Text style={styles.whatsappNoteText}>
-                      📱 Get live stamp &amp; reward updates on WhatsApp
-                    </Text>
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.primaryBtn}
-                  onPress={handleCompleteProfile}
-                  disabled={loading}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.primaryBtnText}>
-                    {loading ? 'Saving Profile...' : 'Complete & Open Wallet'}
-                  </Text>
-                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -393,13 +451,13 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingVertical: 36,
+    paddingVertical: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
   brandContainer: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 22,
   },
   brandLogo: {
     width: 170,
@@ -413,7 +471,7 @@ const styles = StyleSheet.create({
   },
   authCard: {
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 390,
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
@@ -425,7 +483,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderRadius: 8,
     padding: 4,
-    marginBottom: 20,
+    marginBottom: 18,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
@@ -466,20 +524,6 @@ const styles = StyleSheet.create({
   formSection: {
     gap: 14,
   },
-  profileSetupHeader: {
-    marginBottom: 4,
-  },
-  profileSetupTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  profileSetupSub: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-    lineHeight: 16,
-  },
   inputGroup: {
     gap: 6,
   },
@@ -501,6 +545,24 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     color: '#0F172A',
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  eyeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  eyeBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
   },
   phoneInputRow: {
     flexDirection: 'row',
@@ -549,36 +611,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 4,
-    gap: 8,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#F1F5F9',
-  },
-  dividerText: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontWeight: '700',
-  },
-  googleBtn: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingVertical: 11,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  googleBtnText: {
-    color: '#0F172A',
-    fontSize: 13,
-    fontWeight: '700',
-  },
   otpSection: {
     gap: 16,
     alignItems: 'center',
@@ -595,6 +627,7 @@ const styles = StyleSheet.create({
   otpHeaderSub: {
     fontSize: 12,
     color: '#64748B',
+    textAlign: 'center',
   },
   otpInput: {
     backgroundColor: '#F8FAFC',
